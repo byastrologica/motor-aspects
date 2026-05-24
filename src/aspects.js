@@ -36,8 +36,11 @@ export const DEFAULT_BATCH_OPTIONS = {
   includePointToPoint: true,
   includePointToHouse: true,
   includeHouseToHouse: true,
-  aspectNames: null
+  aspectNames: null,
+  sortBy: "input"
 };
+
+export const VALID_SORT_OPTIONS = ["input", "orb", "distance", "aspect", "pairType"];
 
 export function roundDegree(value) {
   return Number(Number(value).toFixed(4));
@@ -80,6 +83,16 @@ export function normalizeAspectNames(aspectNames) {
   }
 
   return normalizedNames;
+}
+
+export function normalizeSortBy(sortBy) {
+  const normalizedSortBy = String(sortBy ?? DEFAULT_BATCH_OPTIONS.sortBy).trim();
+
+  if (!VALID_SORT_OPTIONS.includes(normalizedSortBy)) {
+    throw new Error(`options.sortBy must be one of: ${VALID_SORT_OPTIONS.join(", ")}.`);
+  }
+
+  return normalizedSortBy;
 }
 
 export function identifyAspects(degreeA, degreeB, aspectNames = null) {
@@ -187,7 +200,8 @@ export function normalizeBatchOptions(options = {}) {
     includePointToPoint: options.includePointToPoint ?? DEFAULT_BATCH_OPTIONS.includePointToPoint,
     includePointToHouse: options.includePointToHouse ?? DEFAULT_BATCH_OPTIONS.includePointToHouse,
     includeHouseToHouse: options.includeHouseToHouse ?? DEFAULT_BATCH_OPTIONS.includeHouseToHouse,
-    aspectNames: normalizeAspectNames(options.aspectNames ?? DEFAULT_BATCH_OPTIONS.aspectNames)
+    aspectNames: normalizeAspectNames(options.aspectNames ?? DEFAULT_BATCH_OPTIONS.aspectNames),
+    sortBy: normalizeSortBy(options.sortBy ?? DEFAULT_BATCH_OPTIONS.sortBy)
   };
 }
 
@@ -220,6 +234,40 @@ export function shouldIncludePair(pairType, options) {
   }
 
   return false;
+}
+
+export function getBestDifference(result) {
+  return result.aspects[0]?.difference ?? Number.POSITIVE_INFINITY;
+}
+
+export function getFirstAspectName(result) {
+  return result.aspects[0]?.aspect ?? "";
+}
+
+export function sortResults(results, sortBy) {
+  if (sortBy === "input") {
+    return results;
+  }
+
+  return [...results].sort((a, b) => {
+    if (sortBy === "orb") {
+      return getBestDifference(a) - getBestDifference(b);
+    }
+
+    if (sortBy === "distance") {
+      return a.distance - b.distance;
+    }
+
+    if (sortBy === "aspect") {
+      return getFirstAspectName(a).localeCompare(getFirstAspectName(b));
+    }
+
+    if (sortBy === "pairType") {
+      return a.pairType.localeCompare(b.pairType);
+    }
+
+    return 0;
+  });
 }
 
 export function identifyBatchAspects(points, houses = [], options = {}) {
@@ -278,14 +326,16 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
     }
   }
 
+  const sortedResults = sortResults(results, normalizedOptions.sortBy);
+
   return {
     pointsCount: normalizedPoints.length,
     housesCount: housePoints.length,
     totalObjectsCount: allPoints.length,
     pairsChecked,
     pairsSkipped,
-    aspectsFound: results.length,
+    aspectsFound: sortedResults.length,
     options: normalizedOptions,
-    results
+    results: sortedResults
   };
 }
