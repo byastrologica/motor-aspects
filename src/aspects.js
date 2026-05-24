@@ -24,7 +24,15 @@ export const HOUSE_NAMES = {
 };
 
 export const ANGULAR_HOUSES = [1, 4, 7, 10];
-export const MAJOR_ASPECTS = ["CONJUNCAO", "OPOSICAO", "QUADRATURA", "TRIGONO", "SEXTIL"];
+
+export const MAJOR_ASPECTS = [
+  "CONJUNCAO",
+  "OPOSICAO",
+  "QUADRATURA",
+  "TRIGONO",
+  "SEXTIL"
+];
+
 export const FIXED_STAR_ALLOWED_ASPECTS = ["CONJUNCAO", "OPOSICAO"];
 export const ECLIPSE_ALLOWED_ASPECTS = ["CONJUNCAO", "OPOSICAO", "QUADRATURA"];
 
@@ -244,8 +252,13 @@ export function isTranspersonalPersonalPair(pointA, pointB) {
 }
 
 export function getOtherPoint(pointA, pointB, predicate) {
-  if (predicate(pointA)) return pointB;
-  if (predicate(pointB)) return pointA;
+  if (predicate(pointA)) {
+    return pointB;
+  }
+
+  if (predicate(pointB)) {
+    return pointA;
+  }
 
   return null;
 }
@@ -258,7 +271,25 @@ export function isAllowedAngleTarget(point) {
   return isPlanet(point) || isNode(point);
 }
 
+export function isMandatoryStructuralPair(pointA, pointB) {
+  const nameA = normalizeToken(pointA.name);
+  const nameB = normalizeToken(pointB.name);
+  const pair = [nameA, nameB].sort().join("|");
+
+  const mandatoryPairs = [
+    ["NODO NORTE", "NODO SUL"].sort().join("|"),
+    ["ASCENDENTE", "DESCENDENTE"].sort().join("|"),
+    ["FUNDO_DO_CEU", "MEIO_DO_CEU"].sort().join("|")
+  ];
+
+  return mandatoryPairs.includes(pair);
+}
+
 export function getRuleInvalidReason(pointA, pointB, aspectName, pairType) {
+  if (isMandatoryStructuralPair(pointA, pointB) && aspectName === "OPOSICAO") {
+    return "MANDATORY_STRUCTURAL_PAIR";
+  }
+
   if (pairType === "POINT_TO_HOUSE") {
     const nonHousePoint = isHouse(pointA) ? pointB : pointA;
 
@@ -336,6 +367,10 @@ export function applyPartOfFortuneReducers(effectiveOrb, pointA, pointB, aspect)
     adjustedOrb -= 0.5;
   }
 
+  if (otherPoint && isTranspersonalPlanet(otherPoint)) {
+    adjustedOrb -= 1.0;
+  }
+
   if (otherPoint && isAsteroid(otherPoint)) {
     adjustedOrb -= 1.0;
   }
@@ -344,11 +379,24 @@ export function applyPartOfFortuneReducers(effectiveOrb, pointA, pointB, aspect)
     adjustedOrb -= 1.0;
   }
 
-  if (otherPoint && isTranspersonalPlanet(otherPoint)) {
-    adjustedOrb -= 1.0;
+  return adjustedOrb;
+}
+
+export function getAsteroidOrbOverride(pointA, pointB) {
+  const aIsAsteroid = isAsteroid(pointA);
+  const bIsAsteroid = isAsteroid(pointB);
+  const aIsPlanet = isPlanet(pointA);
+  const bIsPlanet = isPlanet(pointB);
+
+  if (aIsAsteroid && bIsAsteroid) {
+    return 1.5;
   }
 
-  return adjustedOrb;
+  if ((aIsPlanet && bIsAsteroid) || (bIsPlanet && aIsAsteroid)) {
+    return 2.0;
+  }
+
+  return null;
 }
 
 export function calculateEffectiveOrb(pointA, pointB, aspect) {
@@ -381,6 +429,12 @@ export function calculateEffectiveOrb(pointA, pointB, aspect) {
   }
 
   effectiveOrb = applyPartOfFortuneReducers(effectiveOrb, pointA, pointB, aspect);
+
+  const asteroidOverride = getAsteroidOrbOverride(pointA, pointB);
+
+  if (asteroidOverride !== null) {
+    effectiveOrb = Math.min(effectiveOrb, asteroidOverride);
+  }
 
   return Math.max(0, roundDegree(effectiveOrb));
 }
@@ -431,6 +485,18 @@ export function getConjunctionFalloffMultiplier(aspectName, difference, effectiv
   return Number(Math.max(0, Math.min(1, multiplier)).toFixed(4));
 }
 
+export function getAspectFalloffMultiplier(aspectName) {
+  const falloffs = {
+    CONJUNCAO: 1.0,
+    OPOSICAO: 0.95,
+    QUADRATURA: 0.95,
+    TRIGONO: 0.8,
+    SEXTIL: 0.75
+  };
+
+  return falloffs[aspectName] ?? 1.0;
+}
+
 export function getFamilyPriorityMultiplier(aspect) {
   if (aspect.isStructural) {
     return 1.0;
@@ -451,18 +517,43 @@ export function getFamilyPriorityMultiplier(aspect) {
   return 0.8;
 }
 
-export function calculateResonanceScore(difference, effectiveOrb, compositionMultiplier = 1, conjunctionFalloffMultiplier = 1) {
+export function calculateResonanceScore(
+  difference,
+  effectiveOrb,
+  compositionMultiplier = 1,
+  conjunctionFalloffMultiplier = 1,
+  aspectFalloffMultiplier = 1
+) {
   const baseScore = calculateResonanceBaseScore(difference, effectiveOrb);
 
-  return Number((baseScore * compositionMultiplier * conjunctionFalloffMultiplier).toFixed(4));
+  return Number((
+    baseScore *
+    compositionMultiplier *
+    conjunctionFalloffMultiplier *
+    aspectFalloffMultiplier
+  ).toFixed(4));
 }
 
 export function classifyResonance(score) {
-  if (score >= 0.9) return "dominante";
-  if (score >= 0.75) return "muito_forte";
-  if (score >= 0.6) return "forte";
-  if (score >= 0.45) return "moderado";
-  if (score >= 0.3) return "fraco";
+  if (score >= 0.9) {
+    return "dominante";
+  }
+
+  if (score >= 0.75) {
+    return "muito_forte";
+  }
+
+  if (score >= 0.6) {
+    return "forte";
+  }
+
+  if (score >= 0.45) {
+    return "moderado";
+  }
+
+  if (score >= 0.3) {
+    return "fraco";
+  }
 
   return "residual";
 }
@@ -492,6 +583,10 @@ export function getPartOfFortuneMinimumResonance(aspect) {
     return 0.45;
   }
 
+  if (aspect.family === "septenario" || aspect.family === "novil") {
+    return 0.45;
+  }
+
   return 0.4;
 }
 
@@ -513,22 +608,38 @@ export function getMinimumResonance(aspect, pointA, pointB, pairType) {
   return Number(minimumResonance.toFixed(4));
 }
 
-export function buildAspectResult(aspect, difference, distance, effectiveOrb, invalidReason, pointA = null, pointB = null, pairType = null) {
+export function buildAspectResult(
+  aspect,
+  difference,
+  distance,
+  effectiveOrb,
+  invalidReason,
+  pointA = null,
+  pointB = null,
+  pairType = null
+) {
   const compositionMultiplier = pointA && pointB ? getCompositionMultiplier(pointA, pointB) : 1;
   const conjunctionFalloffMultiplier = getConjunctionFalloffMultiplier(aspect.name, difference, effectiveOrb);
+  const aspectFalloffMultiplier = getAspectFalloffMultiplier(aspect.name);
   const familyPriorityMultiplier = getFamilyPriorityMultiplier(aspect);
   const resonanceBaseScore = calculateResonanceBaseScore(difference, effectiveOrb);
+
   const resonanceScore = calculateResonanceScore(
     difference,
     effectiveOrb,
     compositionMultiplier,
-    conjunctionFalloffMultiplier
+    conjunctionFalloffMultiplier,
+    aspectFalloffMultiplier
   );
+
   const finalPhenomenologicalWeight = Number((resonanceScore * familyPriorityMultiplier).toFixed(4));
+
   const minimumResonance = pointA && pointB
     ? getMinimumResonance(aspect, pointA, pointB, pairType)
     : getBaseMinimumResonance(aspect);
-  const isRelevant = resonanceScore >= minimumResonance;
+
+  const isRenderable = invalidReason !== "MANDATORY_STRUCTURAL_PAIR";
+  const isRelevant = isRenderable && resonanceScore >= minimumResonance;
 
   return {
     aspect: aspect.name,
@@ -550,11 +661,13 @@ export function buildAspectResult(aspect, difference, distance, effectiveOrb, in
     resonanceBaseScore,
     compositionMultiplier,
     conjunctionFalloffMultiplier,
+    aspectFalloffMultiplier,
     resonanceScore,
     resonanceClass: classifyResonance(resonanceScore),
     minimumResonance,
+    isRenderable,
     isRelevant,
-    relevanceReason: isRelevant ? null : "LOW_RESONANCE",
+    relevanceReason: isRelevant ? null : (isRenderable ? "LOW_RESONANCE" : "MANDATORY_STRUCTURAL_PAIR"),
     familyPriorityMultiplier,
     finalPhenomenologicalWeight
   };
@@ -601,7 +714,16 @@ export function identifyAspectsForPair(pointA, pointB, aspectNames = null, pairT
       const invalidReason = getRuleInvalidReason(pointA, pointB, aspect.name, pairType);
       const effectiveOrb = calculateEffectiveOrb(pointA, pointB, aspect);
 
-      return buildAspectResult(aspect, difference, distance, effectiveOrb, invalidReason, pointA, pointB, pairType);
+      return buildAspectResult(
+        aspect,
+        difference,
+        distance,
+        effectiveOrb,
+        invalidReason,
+        pointA,
+        pointB,
+        pairType
+      );
     })
     .filter((result) => result.validGeometry)
     .sort((a, b) => a.difference - b.difference);
