@@ -17,6 +17,10 @@ export const ASPECTS = [
   { name: "NOVIL", angle: 40.0, orb: 1.0 }
 ];
 
+export function roundDegree(value) {
+  return Number(Number(value).toFixed(4));
+}
+
 export function normalizeDegree(value) {
   const number = Number(value);
 
@@ -24,7 +28,7 @@ export function normalizeDegree(value) {
     throw new Error("Degree must be a finite number.");
   }
 
-  return ((number % 360) + 360) % 360;
+  return roundDegree(((number % 360) + 360) % 360);
 }
 
 export function calculateAngularDistance(degreeA, degreeB) {
@@ -32,22 +36,24 @@ export function calculateAngularDistance(degreeA, degreeB) {
   const b = normalizeDegree(degreeB);
 
   const directDistance = Math.abs(a - b);
-  return Math.min(directDistance, 360 - directDistance);
+  return roundDegree(Math.min(directDistance, 360 - directDistance));
 }
 
 export function identifyAspects(degreeA, degreeB) {
-  const distance = calculateAngularDistance(degreeA, degreeB);
+  const normalizedDegreeA = normalizeDegree(degreeA);
+  const normalizedDegreeB = normalizeDegree(degreeB);
+  const distance = calculateAngularDistance(normalizedDegreeA, normalizedDegreeB);
 
   const matches = ASPECTS
     .map((aspect) => {
-      const difference = Math.abs(distance - aspect.angle);
+      const difference = roundDegree(Math.abs(distance - aspect.angle));
 
       return {
         aspect: aspect.name,
         angle: aspect.angle,
         orb: aspect.orb,
-        distance: Number(distance.toFixed(4)),
-        difference: Number(difference.toFixed(4)),
+        distance,
+        difference,
         exact: difference === 0,
         withinOrb: difference <= aspect.orb
       };
@@ -57,10 +63,10 @@ export function identifyAspects(degreeA, degreeB) {
 
   return {
     input: {
-      degreeA: normalizeDegree(degreeA),
-      degreeB: normalizeDegree(degreeB)
+      degreeA: normalizedDegreeA,
+      degreeB: normalizedDegreeB
     },
-    distance: Number(distance.toFixed(4)),
+    distance,
     aspects: matches
   };
 }
