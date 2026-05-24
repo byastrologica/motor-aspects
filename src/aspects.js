@@ -37,10 +37,12 @@ export const DEFAULT_BATCH_OPTIONS = {
   includePointToHouse: true,
   includeHouseToHouse: true,
   aspectNames: null,
-  sortBy: "input"
+  sortBy: "input",
+  outputFormat: "detailed"
 };
 
 export const VALID_SORT_OPTIONS = ["input", "orb", "distance", "aspect", "pairType"];
+export const VALID_OUTPUT_FORMATS = ["detailed", "pipe"];
 
 export function roundDegree(value) {
   return Number(Number(value).toFixed(4));
@@ -54,6 +56,20 @@ export function normalizeDegree(value) {
   }
 
   return roundDegree(((number % 360) + 360) % 360);
+}
+
+export function normalizeSpeed(value) {
+  if (value === undefined || value === null || value === "") {
+    return 0;
+  }
+
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    throw new Error("Speed must be a finite number.");
+  }
+
+  return number;
 }
 
 export function calculateAngularDistance(degreeA, degreeB) {
@@ -93,6 +109,16 @@ export function normalizeSortBy(sortBy) {
   }
 
   return normalizedSortBy;
+}
+
+export function normalizeOutputFormat(outputFormat) {
+  const normalizedOutputFormat = String(outputFormat ?? DEFAULT_BATCH_OPTIONS.outputFormat).trim();
+
+  if (!VALID_OUTPUT_FORMATS.includes(normalizedOutputFormat)) {
+    throw new Error(`options.outputFormat must be one of: ${VALID_OUTPUT_FORMATS.join(", ")}.`);
+  }
+
+  return normalizedOutputFormat;
 }
 
 export function identifyAspects(degreeA, degreeB, aspectNames = null) {
@@ -148,7 +174,8 @@ export function normalizePoint(point, index) {
   return {
     ...point,
     type: point.type ?? "POINT",
-    longitude: normalizeDegree(point.longitude)
+    longitude: normalizeDegree(point.longitude),
+    speed: normalizeSpeed(point.speed)
   };
 }
 
@@ -177,7 +204,8 @@ export function houseToPoint(house, index) {
     house: houseNumber,
     sign: house.sign ?? null,
     longitude: normalizeDegree(house.longitude),
-    declination: house.declination ?? null
+    declination: house.declination ?? null,
+    speed: normalizeSpeed(house.speed)
   };
 }
 
@@ -187,7 +215,8 @@ export function serializePoint(point) {
     longitude: point.longitude,
     sign: point.sign ?? null,
     house: point.house ?? null,
-    type: point.type ?? null
+    type: point.type ?? null,
+    speed: point.speed ?? 0
   };
 }
 
@@ -201,7 +230,8 @@ export function normalizeBatchOptions(options = {}) {
     includePointToHouse: options.includePointToHouse ?? DEFAULT_BATCH_OPTIONS.includePointToHouse,
     includeHouseToHouse: options.includeHouseToHouse ?? DEFAULT_BATCH_OPTIONS.includeHouseToHouse,
     aspectNames: normalizeAspectNames(options.aspectNames ?? DEFAULT_BATCH_OPTIONS.aspectNames),
-    sortBy: normalizeSortBy(options.sortBy ?? DEFAULT_BATCH_OPTIONS.sortBy)
+    sortBy: normalizeSortBy(options.sortBy ?? DEFAULT_BATCH_OPTIONS.sortBy),
+    outputFormat: normalizeOutputFormat(options.outputFormat ?? DEFAULT_BATCH_OPTIONS.outputFormat)
   };
 }
 
@@ -270,6 +300,53 @@ export function sortResults(results, sortBy) {
   });
 }
 
+export function calculateApplyingSeparating(pointA, pointB, aspectAngle) {
+  const currentDistance = calculateAngularDistance(pointA.longitude, pointB.longitude);
+  const currentDifference = Math.abs(currentDistance - aspectAngle);
+
+  const nextLongitudeA = normalizeDegree(pointA.longitude + pointA.speed);
+  const nextLongitudeB = normalizeDegree(pointB.longitude + pointB.speed);
+  const nextDistance = calculateAngularDistance(nextLongitudeA, nextLongitudeB);
+  const nextDifference = Math.abs(nextDistance - aspectAngle);
+
+  const roundedCurrent = roundDegree(currentDifference);
+  const roundedNext = roundDegree(nextDifference);
+
+  if (roundedCurrent === 0) {
+    return "EXACT";
+  }
+
+  if (roundedNext < roundedCurrent) {
+    return "APPLYING";
+  }
+
+  if (roundedNext > roundedCurrent) {
+    return "SEPARATING";
+  }
+
+  return "STATIONARY";
+}
+
+export function formatPipeLine(result, aspect) {
+  return [
+    result.pointA.name,
+    aspect.aspect,
+    result.pointB.name,
+    aspect.difference,
+    aspect.applyingSeparating
+  ].join("|");
+}
+
+export function formatPipeResults(results) {
+  const header = "PLANETA_PONTO_EIXO|ASPECTO|PLANETA_PONTO_EIXO|ORBE|APPLYING_SEPARATING";
+
+  const lines = results.flatMap((result) =>
+    result.aspects.map((aspect) => formatPipeLine(result, aspect))
+  );
+
+  return [header, ...lines];
+}
+
 export function identifyBatchAspects(points, houses = [], options = {}) {
   const safePoints = points ?? [];
   const safeHouses = houses ?? [];
@@ -315,18 +392,37 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
       );
 
       if (calculation.aspects.length > 0) {
+        const aspectsWithMovement = calculation.aspects.map((aspect) => ({
+          ...aspect,
+          applyingSeparating: calculateApplyingSeparating(pointA, pointB, aspect.angle)
+        }));
+
         results.push({
           pairType,
           pointA: serializePoint(pointA),
           pointB: serializePoint(pointB),
           distance: calculation.distance,
-          aspects: calculation.aspects
+          aspects: aspectsWithMovement
         });
       }
     }
   }
 
   const sortedResults = sortResults(results, normalizedOptions.sortBy);
+
+  if (normalizedOptions.outputFormat === "pipe") {
+    return {
+      pointsCount: normalizedPoints.length,
+      housesCount: housePoints.length,
+      totalObjectsCount: allPoints.length,
+      pairsChecked,
+      pairsSkipped,
+      aspectsFound: sortedResults.length,
+      options: normalizedOptions,
+      format: "pipe",
+      results: formatPipeResults(sortedResults)
+    };
+  }
 
   return {
     pointsCount: normalizedPoints.length,
