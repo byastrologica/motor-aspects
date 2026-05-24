@@ -46,7 +46,7 @@ export function identifyAspects(degreeA, degreeB) {
         aspect: aspect.name,
         angle: aspect.angle,
         orb: aspect.orb,
-        distance,
+        distance: Number(distance.toFixed(4)),
         difference: Number(difference.toFixed(4)),
         exact: difference === 0,
         withinOrb: difference <= aspect.orb
@@ -62,5 +62,73 @@ export function identifyAspects(degreeA, degreeB) {
     },
     distance: Number(distance.toFixed(4)),
     aspects: matches
+  };
+}
+
+export function identifyBatchAspects(points) {
+  if (!Array.isArray(points)) {
+    throw new Error("points must be an array.");
+  }
+
+  if (points.length < 2) {
+    throw new Error("At least two points are required.");
+  }
+
+  const normalizedPoints = points.map((point, index) => {
+    if (!point || typeof point !== "object") {
+      throw new Error(`Point at index ${index} must be an object.`);
+    }
+
+    if (!point.name) {
+      throw new Error(`Point at index ${index} must have a name.`);
+    }
+
+    if (point.longitude === undefined) {
+      throw new Error(`Point ${point.name} must have a longitude.`);
+    }
+
+    return {
+      ...point,
+      longitude: normalizeDegree(point.longitude)
+    };
+  });
+
+  const results = [];
+
+  for (let i = 0; i < normalizedPoints.length; i += 1) {
+    for (let j = i + 1; j < normalizedPoints.length; j += 1) {
+      const pointA = normalizedPoints[i];
+      const pointB = normalizedPoints[j];
+
+      const calculation = identifyAspects(pointA.longitude, pointB.longitude);
+
+      if (calculation.aspects.length > 0) {
+        results.push({
+          pointA: {
+            name: pointA.name,
+            longitude: pointA.longitude,
+            sign: pointA.sign ?? null,
+            house: pointA.house ?? null,
+            type: pointA.type ?? null
+          },
+          pointB: {
+            name: pointB.name,
+            longitude: pointB.longitude,
+            sign: pointB.sign ?? null,
+            house: pointB.house ?? null,
+            type: pointB.type ?? null
+          },
+          distance: calculation.distance,
+          aspects: calculation.aspects
+        });
+      }
+    }
+  }
+
+  return {
+    pointsCount: normalizedPoints.length,
+    pairsChecked: (normalizedPoints.length * (normalizedPoints.length - 1)) / 2,
+    aspectsFound: results.length,
+    results
   };
 }
