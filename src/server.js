@@ -45,15 +45,9 @@ app.post("/aspects", (request, response) => {
 
 app.post("/aspects/batch", (request, response) => {
   try {
-    const { points } = request.body;
+    const { points, houses } = request.body;
 
-    if (!points) {
-      return response.status(400).json({
-        error: "points is required."
-      });
-    }
-
-    const result = identifyBatchAspects(points);
+    const result = identifyBatchAspects(points, houses);
 
     response.json(result);
   } catch (error) {
