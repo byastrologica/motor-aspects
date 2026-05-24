@@ -35,7 +35,8 @@ export const HOUSE_NAMES = {
 export const DEFAULT_BATCH_OPTIONS = {
   includePointToPoint: true,
   includePointToHouse: true,
-  includeHouseToHouse: true
+  includeHouseToHouse: true,
+  aspectNames: null
 };
 
 export function roundDegree(value) {
@@ -60,12 +61,38 @@ export function calculateAngularDistance(degreeA, degreeB) {
   return roundDegree(Math.min(directDistance, 360 - directDistance));
 }
 
-export function identifyAspects(degreeA, degreeB) {
+export function normalizeAspectNames(aspectNames) {
+  if (aspectNames === undefined || aspectNames === null) {
+    return null;
+  }
+
+  if (!Array.isArray(aspectNames)) {
+    throw new Error("options.aspectNames must be an array.");
+  }
+
+  const normalizedNames = aspectNames.map((name) => String(name).trim().toUpperCase());
+
+  const validNames = ASPECTS.map((aspect) => aspect.name);
+  const invalidNames = normalizedNames.filter((name) => !validNames.includes(name));
+
+  if (invalidNames.length > 0) {
+    throw new Error(`Invalid aspect name(s): ${invalidNames.join(", ")}.`);
+  }
+
+  return normalizedNames;
+}
+
+export function identifyAspects(degreeA, degreeB, aspectNames = null) {
   const normalizedDegreeA = normalizeDegree(degreeA);
   const normalizedDegreeB = normalizeDegree(degreeB);
+  const normalizedAspectNames = normalizeAspectNames(aspectNames);
   const distance = calculateAngularDistance(normalizedDegreeA, normalizedDegreeB);
 
-  const matches = ASPECTS
+  const aspectsToCheck = normalizedAspectNames
+    ? ASPECTS.filter((aspect) => normalizedAspectNames.includes(aspect.name))
+    : ASPECTS;
+
+  const matches = aspectsToCheck
     .map((aspect) => {
       const difference = roundDegree(Math.abs(distance - aspect.angle));
 
@@ -128,7 +155,7 @@ export function houseToPoint(house, index) {
   const houseNumber = Number(house.house);
 
   if (!Number.isInteger(houseNumber) || houseNumber < 1 || houseNumber > 12) {
-    throw new Error(`House number must be an integer from 1 to 12.`);
+    throw new Error("House number must be an integer from 1 to 12.");
   }
 
   return {
@@ -159,7 +186,8 @@ export function normalizeBatchOptions(options = {}) {
   return {
     includePointToPoint: options.includePointToPoint ?? DEFAULT_BATCH_OPTIONS.includePointToPoint,
     includePointToHouse: options.includePointToHouse ?? DEFAULT_BATCH_OPTIONS.includePointToHouse,
-    includeHouseToHouse: options.includeHouseToHouse ?? DEFAULT_BATCH_OPTIONS.includeHouseToHouse
+    includeHouseToHouse: options.includeHouseToHouse ?? DEFAULT_BATCH_OPTIONS.includeHouseToHouse,
+    aspectNames: normalizeAspectNames(options.aspectNames ?? DEFAULT_BATCH_OPTIONS.aspectNames)
   };
 }
 
@@ -232,7 +260,11 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
 
       pairsChecked += 1;
 
-      const calculation = identifyAspects(pointA.longitude, pointB.longitude);
+      const calculation = identifyAspects(
+        pointA.longitude,
+        pointB.longitude,
+        normalizedOptions.aspectNames
+      );
 
       if (calculation.aspects.length > 0) {
         results.push({
