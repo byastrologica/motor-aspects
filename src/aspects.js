@@ -32,6 +32,7 @@ export const ECLIPSE_ALLOWED_ASPECTS = ["CONJUNCAO", "OPOSICAO", "QUADRATURA"];
 export const LUMINARIES = ["SOL", "LUA"];
 export const PERSONAL_PLANETS = ["SOL", "LUA", "MERCURIO", "VENUS", "MARTE"];
 export const TRANSPERSONAL_PLANETS = ["URANO", "NETUNO", "PLUTAO"];
+export const NODES = ["NODO NORTE", "NODO SUL"];
 
 export const DEFAULT_BATCH_OPTIONS = {
   includePointToPoint: true,
@@ -176,8 +177,16 @@ export function isAsteroid(point) {
   return point.type === "ASTEROIDE";
 }
 
+export function isHouse(point) {
+  return point.type === "HOUSE";
+}
+
 export function isLuminary(point) {
   return LUMINARIES.includes(normalizeToken(point.name));
+}
+
+export function isNode(point) {
+  return NODES.includes(normalizeToken(point.name));
 }
 
 export function isPersonalPlanet(point) {
@@ -211,13 +220,41 @@ export function isTranspersonalPersonalPair(pointA, pointB) {
   );
 }
 
-export function getRuleInvalidReason(pointA, pointB, aspectName) {
+export function getOtherPoint(pointA, pointB, predicate) {
+  if (predicate(pointA)) {
+    return pointB;
+  }
+
+  if (predicate(pointB)) {
+    return pointA;
+  }
+
+  return null;
+}
+
+export function isAllowedFixedStarTarget(point) {
+  return point.type === "PLANETA" || isHouse(point) || isNode(point);
+}
+
+export function getRuleInvalidReason(pointA, pointB, aspectName, pairType) {
+  if (pairType === "POINT_TO_HOUSE" && !isMajorAspectName(aspectName)) {
+    return "ANGLE_MINOR_ASPECT_NOT_ALLOWED";
+  }
+
   if (isFixedStar(pointA) && isFixedStar(pointB)) {
     return "FIXED_STAR_TO_FIXED_STAR";
   }
 
-  if (hasFixedStar(pointA, pointB) && !FIXED_STAR_ALLOWED_ASPECTS.includes(aspectName)) {
-    return "FIXED_STAR_ASPECT_NOT_ALLOWED";
+  if (hasFixedStar(pointA, pointB)) {
+    const otherPoint = getOtherPoint(pointA, pointB, isFixedStar);
+
+    if (!isAllowedFixedStarTarget(otherPoint)) {
+      return "FIXED_STAR_TARGET_NOT_ALLOWED";
+    }
+
+    if (!FIXED_STAR_ALLOWED_ASPECTS.includes(aspectName)) {
+      return "FIXED_STAR_ASPECT_NOT_ALLOWED";
+    }
   }
 
   if (hasEclipse(pointA, pointB) && !ECLIPSE_ALLOWED_ASPECTS.includes(aspectName)) {
@@ -227,9 +264,21 @@ export function getRuleInvalidReason(pointA, pointB, aspectName) {
   return null;
 }
 
+export function calculateEclipseOrb(pointA, pointB, aspectName) {
+  if (!ECLIPSE_ALLOWED_ASPECTS.includes(aspectName)) {
+    return 0;
+  }
+
+  return hasLuminary(pointA, pointB) ? 3.0 : 2.0;
+}
+
 export function calculateEffectiveOrb(pointA, pointB, aspect) {
   const aspectName = aspect.name;
   let effectiveOrb = aspect.orb;
+
+  if (hasEclipse(pointA, pointB)) {
+    return calculateEclipseOrb(pointA, pointB, aspectName);
+  }
 
   if (hasFixedStar(pointA, pointB)) {
     return hasLuminary(pointA, pointB) ? 1.5 : 1.0;
@@ -286,8 +335,26 @@ export function classifyResonance(score) {
   return "residual";
 }
 
+export function getMinimumResonance(aspect) {
+  if (aspect.isStructural) {
+    return 0.15;
+  }
+
+  if (aspect.family === "septenario" || aspect.family === "novil") {
+    return 0.4;
+  }
+
+  if (aspect.family === "kepleriano") {
+    return 0.35;
+  }
+
+  return 0.35;
+}
+
 export function buildAspectResult(aspect, difference, distance, effectiveOrb, invalidReason) {
   const resonanceScore = calculateResonanceScore(difference, effectiveOrb);
+  const minimumResonance = getMinimumResonance(aspect);
+  const isRelevant = resonanceScore >= minimumResonance;
 
   return {
     aspect: aspect.name,
@@ -307,7 +374,10 @@ export function buildAspectResult(aspect, difference, distance, effectiveOrb, in
     isStructural: aspect.isStructural,
     isKarmic: aspect.isKarmic,
     resonanceScore,
-    resonanceClass: classifyResonance(resonanceScore)
+    resonanceClass: classifyResonance(resonanceScore),
+    minimumResonance,
+    isRelevant,
+    relevanceReason: isRelevant ? null : "LOW_RESONANCE"
   };
 }
 
@@ -326,7 +396,7 @@ export function identifyAspects(degreeA, degreeB, aspectNames = null) {
       const difference = roundDegree(Math.abs(distance - aspect.angle));
       return buildAspectResult(aspect, difference, distance, aspect.orb, null);
     })
-    .filter((result) => result.withinOrb)
+    .filter((result) => result.withinOrb && result.isRelevant)
     .sort((a, b) => a.difference - b.difference);
 
   return {
@@ -339,7 +409,7 @@ export function identifyAspects(degreeA, degreeB, aspectNames = null) {
   };
 }
 
-export function identifyAspectsForPair(pointA, pointB, aspectNames = null) {
+export function identifyAspectsForPair(pointA, pointB, aspectNames = null, pairType = null) {
   const normalizedAspectNames = normalizeAspectNames(aspectNames);
   const distance = calculateAngularDistance(pointA.longitude, pointB.longitude);
 
@@ -350,7 +420,7 @@ export function identifyAspectsForPair(pointA, pointB, aspectNames = null) {
   const matches = aspectsToCheck
     .map((aspect) => {
       const difference = roundDegree(Math.abs(distance - aspect.angle));
-      const invalidReason = getRuleInvalidReason(pointA, pointB, aspect.name);
+      const invalidReason = getRuleInvalidReason(pointA, pointB, aspect.name, pairType);
       const effectiveOrb = calculateEffectiveOrb(pointA, pointB, aspect);
 
       return buildAspectResult(aspect, difference, distance, effectiveOrb, invalidReason);
@@ -593,6 +663,7 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
   let pairsChecked = 0;
   let pairsSkipped = 0;
   let astrologicaInvalidAspects = 0;
+  let lowResonanceAspects = 0;
   const ignoredHousesCount = safeHouses.length - housePoints.length;
 
   for (let i = 0; i < allPoints.length; i += 1) {
@@ -608,7 +679,12 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
 
       pairsChecked += 1;
 
-      const calculation = identifyAspectsForPair(pointA, pointB, normalizedOptions.aspectNames);
+      const calculation = identifyAspectsForPair(
+        pointA,
+        pointB,
+        normalizedOptions.aspectNames,
+        pairType
+      );
 
       if (calculation.aspects.length > 0) {
         const validAspects = calculation.aspects
@@ -619,6 +695,11 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
           .filter((aspect) => {
             if (!aspect.validAstrologica) {
               astrologicaInvalidAspects += 1;
+              return false;
+            }
+
+            if (!aspect.isRelevant) {
+              lowResonanceAspects += 1;
               return false;
             }
 
@@ -651,6 +732,7 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
       pairsChecked,
       pairsSkipped,
       astrologicaInvalidAspects,
+      lowResonanceAspects,
       aspectsFound: sortedResults.length,
       options: normalizedOptions,
       format: "pipe",
@@ -667,6 +749,7 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
     pairsChecked,
     pairsSkipped,
     astrologicaInvalidAspects,
+    lowResonanceAspects,
     aspectsFound: sortedResults.length,
     options: normalizedOptions,
     results: sortedResults
