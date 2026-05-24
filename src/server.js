@@ -1,9 +1,9 @@
 import express from "express";
-import { identifyAspects } from "./aspects.js";
+import { identifyAspects, identifyBatchAspects } from "./aspects.js";
 
 const app = express();
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 
 app.get("/", (request, response) => {
   response.json({
@@ -11,7 +11,8 @@ app.get("/", (request, response) => {
     description: "API para calculo geometrico de aspectos astrologicos.",
     endpoints: {
       health: "GET /health",
-      calculateAspect: "POST /aspects"
+      calculateAspect: "POST /aspects",
+      calculateBatchAspects: "POST /aspects/batch"
     }
   });
 });
@@ -33,6 +34,26 @@ app.post("/aspects", (request, response) => {
     }
 
     const result = identifyAspects(degreeA, degreeB);
+
+    response.json(result);
+  } catch (error) {
+    response.status(400).json({
+      error: error.message
+    });
+  }
+});
+
+app.post("/aspects/batch", (request, response) => {
+  try {
+    const { points } = request.body;
+
+    if (!points) {
+      return response.status(400).json({
+        error: "points is required."
+      });
+    }
+
+    const result = identifyBatchAspects(points);
 
     response.json(result);
   } catch (error) {
