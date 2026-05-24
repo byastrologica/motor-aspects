@@ -32,6 +32,12 @@ export const HOUSE_NAMES = {
   12: "CASA_12"
 };
 
+export const DEFAULT_BATCH_OPTIONS = {
+  includePointToPoint: true,
+  includePointToHouse: true,
+  includeHouseToHouse: true
+};
+
 export function roundDegree(value) {
   return Number(Number(value).toFixed(4));
 }
@@ -145,9 +151,53 @@ export function serializePoint(point) {
   };
 }
 
-export function identifyBatchAspects(points, houses = []) {
+export function normalizeBatchOptions(options = {}) {
+  if (!options || typeof options !== "object") {
+    throw new Error("options must be an object.");
+  }
+
+  return {
+    includePointToPoint: options.includePointToPoint ?? DEFAULT_BATCH_OPTIONS.includePointToPoint,
+    includePointToHouse: options.includePointToHouse ?? DEFAULT_BATCH_OPTIONS.includePointToHouse,
+    includeHouseToHouse: options.includeHouseToHouse ?? DEFAULT_BATCH_OPTIONS.includeHouseToHouse
+  };
+}
+
+export function getPairType(pointA, pointB) {
+  const aIsHouse = pointA.type === "HOUSE";
+  const bIsHouse = pointB.type === "HOUSE";
+
+  if (aIsHouse && bIsHouse) {
+    return "HOUSE_TO_HOUSE";
+  }
+
+  if (aIsHouse || bIsHouse) {
+    return "POINT_TO_HOUSE";
+  }
+
+  return "POINT_TO_POINT";
+}
+
+export function shouldIncludePair(pairType, options) {
+  if (pairType === "POINT_TO_POINT") {
+    return options.includePointToPoint;
+  }
+
+  if (pairType === "POINT_TO_HOUSE") {
+    return options.includePointToHouse;
+  }
+
+  if (pairType === "HOUSE_TO_HOUSE") {
+    return options.includeHouseToHouse;
+  }
+
+  return false;
+}
+
+export function identifyBatchAspects(points, houses = [], options = {}) {
   const safePoints = points ?? [];
   const safeHouses = houses ?? [];
+  const normalizedOptions = normalizeBatchOptions(options);
 
   if (!Array.isArray(safePoints)) {
     throw new Error("points must be an array.");
@@ -166,16 +216,27 @@ export function identifyBatchAspects(points, houses = []) {
   }
 
   const results = [];
+  let pairsChecked = 0;
+  let pairsSkipped = 0;
 
   for (let i = 0; i < allPoints.length; i += 1) {
     for (let j = i + 1; j < allPoints.length; j += 1) {
       const pointA = allPoints[i];
       const pointB = allPoints[j];
+      const pairType = getPairType(pointA, pointB);
+
+      if (!shouldIncludePair(pairType, normalizedOptions)) {
+        pairsSkipped += 1;
+        continue;
+      }
+
+      pairsChecked += 1;
 
       const calculation = identifyAspects(pointA.longitude, pointB.longitude);
 
       if (calculation.aspects.length > 0) {
         results.push({
+          pairType,
           pointA: serializePoint(pointA),
           pointB: serializePoint(pointB),
           distance: calculation.distance,
@@ -189,8 +250,10 @@ export function identifyBatchAspects(points, houses = []) {
     pointsCount: normalizedPoints.length,
     housesCount: housePoints.length,
     totalObjectsCount: allPoints.length,
-    pairsChecked: (allPoints.length * (allPoints.length - 1)) / 2,
+    pairsChecked,
+    pairsSkipped,
     aspectsFound: results.length,
+    options: normalizedOptions,
     results
   };
 }
