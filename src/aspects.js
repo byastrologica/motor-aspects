@@ -347,6 +347,10 @@ export function formatPipeResults(results) {
   return [header, ...lines];
 }
 
+export function formatPipeText(pipeResults) {
+  return pipeResults.join("\n");
+}
+
 export function identifyBatchAspects(points, houses = [], options = {}) {
   const safePoints = points ?? [];
   const safeHouses = houses ?? [];
@@ -411,6 +415,8 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
   const sortedResults = sortResults(results, normalizedOptions.sortBy);
 
   if (normalizedOptions.outputFormat === "pipe") {
+    const pipeResults = formatPipeResults(sortedResults);
+
     return {
       pointsCount: normalizedPoints.length,
       housesCount: housePoints.length,
@@ -420,7 +426,8 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
       aspectsFound: sortedResults.length,
       options: normalizedOptions,
       format: "pipe",
-      results: formatPipeResults(sortedResults)
+      results: pipeResults,
+      resultsText: formatPipeText(pipeResults)
     };
   }
 
