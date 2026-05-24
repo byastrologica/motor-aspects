@@ -1,0 +1,13 @@
+{
+  "name": "motor-aspects",
+  "version": "1.0.0",
+  "description": "API em JavaScript para cálculo geométrico de aspectos astrológicos, sem interpretação.",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
