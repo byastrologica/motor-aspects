@@ -25,7 +25,13 @@ export const HOUSE_NAMES = {
 
 export const ANGULAR_HOUSES = [1, 4, 7, 10];
 
+export const MAJOR_ASPECTS = ["CONJUNCAO", "OPOSICAO", "QUADRATURA", "TRIGONO", "SEXTIL"];
+export const FIXED_STAR_ALLOWED_ASPECTS = ["CONJUNCAO", "OPOSICAO"];
 export const ECLIPSE_ALLOWED_ASPECTS = ["CONJUNCAO", "OPOSICAO", "QUADRATURA"];
+
+export const LUMINARIES = ["SOL", "LUA"];
+export const PERSONAL_PLANETS = ["SOL", "LUA", "MERCURIO", "VENUS", "MARTE"];
+export const TRANSPERSONAL_PLANETS = ["URANO", "NETUNO", "PLUTAO"];
 
 export const DEFAULT_BATCH_OPTIONS = {
   includePointToPoint: true,
@@ -154,6 +160,97 @@ export function normalizeOutputFormat(outputFormat) {
   return normalizedOutputFormat;
 }
 
+export function isMajorAspectName(aspectName) {
+  return MAJOR_ASPECTS.includes(aspectName);
+}
+
+export function isFixedStar(point) {
+  return point.type === "ESTRELA_FIXA";
+}
+
+export function isEclipse(point) {
+  return point.type === "ECLIPSE";
+}
+
+export function isAsteroid(point) {
+  return point.type === "ASTEROIDE";
+}
+
+export function isLuminary(point) {
+  return LUMINARIES.includes(normalizeToken(point.name));
+}
+
+export function isPersonalPlanet(point) {
+  return PERSONAL_PLANETS.includes(normalizeToken(point.name));
+}
+
+export function isTranspersonalPlanet(point) {
+  return TRANSPERSONAL_PLANETS.includes(normalizeToken(point.name));
+}
+
+export function hasFixedStar(pointA, pointB) {
+  return isFixedStar(pointA) || isFixedStar(pointB);
+}
+
+export function hasEclipse(pointA, pointB) {
+  return isEclipse(pointA) || isEclipse(pointB);
+}
+
+export function hasAsteroid(pointA, pointB) {
+  return isAsteroid(pointA) || isAsteroid(pointB);
+}
+
+export function hasLuminary(pointA, pointB) {
+  return isLuminary(pointA) || isLuminary(pointB);
+}
+
+export function isTranspersonalPersonalPair(pointA, pointB) {
+  return (
+    (isTranspersonalPlanet(pointA) && isPersonalPlanet(pointB)) ||
+    (isTranspersonalPlanet(pointB) && isPersonalPlanet(pointA))
+  );
+}
+
+export function getRuleInvalidReason(pointA, pointB, aspectName) {
+  if (isFixedStar(pointA) && isFixedStar(pointB)) {
+    return "FIXED_STAR_TO_FIXED_STAR";
+  }
+
+  if (hasFixedStar(pointA, pointB) && !FIXED_STAR_ALLOWED_ASPECTS.includes(aspectName)) {
+    return "FIXED_STAR_ASPECT_NOT_ALLOWED";
+  }
+
+  if (hasEclipse(pointA, pointB) && !ECLIPSE_ALLOWED_ASPECTS.includes(aspectName)) {
+    return "ECLIPSE_ASPECT_NOT_ALLOWED";
+  }
+
+  return null;
+}
+
+export function calculateEffectiveOrb(pointA, pointB, aspect) {
+  const aspectName = aspect.name;
+  let effectiveOrb = aspect.orb;
+
+  if (hasFixedStar(pointA, pointB)) {
+    return hasLuminary(pointA, pointB) ? 1.5 : 1.0;
+  }
+
+  if (hasLuminary(pointA, pointB) && isMajorAspectName(aspectName)) {
+    effectiveOrb += 1.0;
+  }
+
+  if (hasAsteroid(pointA, pointB)) {
+    effectiveOrb -= 0.5;
+  }
+
+  if (isTranspersonalPersonalPair(pointA, pointB)) {
+    const cap = isMajorAspectName(aspectName) ? 3.0 : 1.0;
+    effectiveOrb = Math.min(effectiveOrb, cap);
+  }
+
+  return Math.max(0, roundDegree(effectiveOrb));
+}
+
 export function identifyAspects(degreeA, degreeB, aspectNames = null) {
   const normalizedDegreeA = normalizeDegree(degreeA);
   const normalizedDegreeB = normalizeDegree(degreeB);
@@ -172,6 +269,7 @@ export function identifyAspects(degreeA, degreeB, aspectNames = null) {
         aspect: aspect.name,
         angle: aspect.angle,
         orb: aspect.orb,
+        effectiveOrb: aspect.orb,
         distance,
         difference,
         exact: difference === 0,
@@ -185,6 +283,48 @@ export function identifyAspects(degreeA, degreeB, aspectNames = null) {
     input: {
       degreeA: normalizedDegreeA,
       degreeB: normalizedDegreeB
+    },
+    distance,
+    aspects: matches
+  };
+}
+
+export function identifyAspectsForPair(pointA, pointB, aspectNames = null) {
+  const normalizedAspectNames = normalizeAspectNames(aspectNames);
+  const distance = calculateAngularDistance(pointA.longitude, pointB.longitude);
+
+  const aspectsToCheck = normalizedAspectNames
+    ? ASPECTS.filter((aspect) => normalizedAspectNames.includes(aspect.name))
+    : ASPECTS;
+
+  const matches = aspectsToCheck
+    .map((aspect) => {
+      const difference = roundDegree(Math.abs(distance - aspect.angle));
+      const invalidReason = getRuleInvalidReason(pointA, pointB, aspect.name);
+      const effectiveOrb = calculateEffectiveOrb(pointA, pointB, aspect);
+      const withinOrb = difference <= effectiveOrb;
+
+      return {
+        aspect: aspect.name,
+        angle: aspect.angle,
+        orb: aspect.orb,
+        effectiveOrb,
+        distance,
+        difference,
+        exact: difference === 0,
+        withinOrb,
+        validGeometry: withinOrb,
+        validAstrologica: withinOrb && invalidReason === null,
+        invalidReason
+      };
+    })
+    .filter((result) => result.validGeometry)
+    .sort((a, b) => a.difference - b.difference);
+
+  return {
+    input: {
+      degreeA: pointA.longitude,
+      degreeB: pointB.longitude
     },
     distance,
     aspects: matches
@@ -301,35 +441,6 @@ export function shouldIncludePair(pairType, options) {
   }
 
   return false;
-}
-
-export function isFixedStar(point) {
-  return point.type === "ESTRELA_FIXA";
-}
-
-export function isEclipse(point) {
-  return point.type === "ECLIPSE";
-}
-
-export function validateAstrologicaAspect(pointA, pointB, aspect) {
-  if (isFixedStar(pointA) && isFixedStar(pointB)) {
-    return {
-      validAstrologica: false,
-      invalidReason: "FIXED_STAR_TO_FIXED_STAR"
-    };
-  }
-
-  if ((isEclipse(pointA) || isEclipse(pointB)) && !ECLIPSE_ALLOWED_ASPECTS.includes(aspect.aspect)) {
-    return {
-      validAstrologica: false,
-      invalidReason: "ECLIPSE_ASPECT_NOT_ALLOWED"
-    };
-  }
-
-  return {
-    validAstrologica: true,
-    invalidReason: null
-  };
 }
 
 export function getBestDifference(result) {
@@ -460,25 +571,14 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
 
       pairsChecked += 1;
 
-      const calculation = identifyAspects(
-        pointA.longitude,
-        pointB.longitude,
-        normalizedOptions.aspectNames
-      );
+      const calculation = identifyAspectsForPair(pointA, pointB, normalizedOptions.aspectNames);
 
       if (calculation.aspects.length > 0) {
         const validAspects = calculation.aspects
-          .map((aspect) => {
-            const validation = validateAstrologicaAspect(pointA, pointB, aspect);
-
-            return {
-              ...aspect,
-              validGeometry: true,
-              validAstrologica: validation.validAstrologica,
-              invalidReason: validation.invalidReason,
-              applyingSeparating: calculateApplyingSeparating(pointA, pointB, aspect.angle)
-            };
-          })
+          .map((aspect) => ({
+            ...aspect,
+            applyingSeparating: calculateApplyingSeparating(pointA, pointB, aspect.angle)
+          }))
           .filter((aspect) => {
             if (!aspect.validAstrologica) {
               astrologicaInvalidAspects += 1;
