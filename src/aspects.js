@@ -208,6 +208,9 @@ export const TRANSPERSONAL_PLANETS = ["URANO", "NETUNO", "PLUTAO"];
 export const PLANETS = [...PERSONAL_PLANETS, ...SOCIAL_PLANETS, ...TRANSPERSONAL_PLANETS];
 export const NODES = ["NODO NORTE", "NODO SUL"];
 
+export const CANONICAL_AXIS_ENDPOINTS = ["NODO NORTE", "ASCENDENTE", "MEIO_DO_CEU"];
+export const DERIVED_AXIS_ENDPOINTS = ["NODO SUL", "DESCENDENTE", "FUNDO_DO_CEU"];
+
 export const DEFAULT_BATCH_OPTIONS = {
   includePointToPoint: true,
   includePointToHouse: true,
@@ -390,6 +393,14 @@ export function isTranspersonalPlanet(point) {
   return TRANSPERSONAL_PLANETS.includes(normalizeToken(point.name));
 }
 
+export function isCanonicalAxisEndpoint(point) {
+  return CANONICAL_AXIS_ENDPOINTS.includes(normalizeToken(point.name));
+}
+
+export function isDerivedAxisEndpoint(point) {
+  return DERIVED_AXIS_ENDPOINTS.includes(normalizeToken(point.name));
+}
+
 export function hasFixedStar(pointA, pointB) {
   return isFixedStar(pointA) || isFixedStar(pointB);
 }
@@ -412,6 +423,28 @@ export function hasLilithMedia(pointA, pointB) {
 
 export function hasPartOfFortune(pointA, pointB) {
   return isPartOfFortune(pointA) || isPartOfFortune(pointB);
+}
+
+export function hasSymbolicRefiner(pointA, pointB) {
+  return (
+    isAsteroid(pointA) ||
+    isAsteroid(pointB) ||
+    isPartOfFortune(pointA) ||
+    isPartOfFortune(pointB)
+  );
+}
+
+export function hasSupportiveStructuralBody(pointA, pointB) {
+  return (
+    isEclipse(pointA) ||
+    isEclipse(pointB) ||
+    isFixedStar(pointA) ||
+    isFixedStar(pointB) ||
+    isChiron(pointA) ||
+    isChiron(pointB) ||
+    isLilithMedia(pointA) ||
+    isLilithMedia(pointB)
+  );
 }
 
 export function isTranspersonalPersonalPair(pointA, pointB) {
@@ -477,13 +510,29 @@ export function isMandatoryStructuralPair(pointA, pointB) {
   return mandatoryPairs.includes(pair);
 }
 
-export function isNodeToAnglePair(pointA, pointB) {
-  const aIsNode = isNode(pointA);
-  const bIsNode = isNode(pointB);
-  const aIsAngle = isHouse(pointA);
-  const bIsAngle = isHouse(pointB);
+export function isAxisPair(pointA, pointB) {
+  return isCanonicalAxisEndpoint(pointA) || isCanonicalAxisEndpoint(pointB) || isDerivedAxisEndpoint(pointA) || isDerivedAxisEndpoint(pointB);
+}
 
-  return (aIsNode && bIsAngle) || (bIsNode && aIsAngle);
+export function isAxisDerivedAspect(pointA, pointB, aspectName) {
+  if (!isMajorAspectName(aspectName)) {
+    return false;
+  }
+
+  const aDerived = isDerivedAxisEndpoint(pointA);
+  const bDerived = isDerivedAxisEndpoint(pointB);
+  const aCanonical = isCanonicalAxisEndpoint(pointA);
+  const bCanonical = isCanonicalAxisEndpoint(pointB);
+
+  if (isMandatoryStructuralPair(pointA, pointB)) {
+    return true;
+  }
+
+  if ((aDerived && !bCanonical) || (bDerived && !aCanonical)) {
+    return true;
+  }
+
+  return false;
 }
 
 export function isRedundantDerivedAspect(pointA, pointB, aspectName) {
@@ -491,7 +540,7 @@ export function isRedundantDerivedAspect(pointA, pointB, aspectName) {
     return true;
   }
 
-  if (isNodeToAnglePair(pointA, pointB) && ["CONJUNCAO", "OPOSICAO", "QUADRATURA"].includes(aspectName)) {
+  if (isAxisDerivedAspect(pointA, pointB, aspectName)) {
     return true;
   }
 
@@ -500,7 +549,7 @@ export function isRedundantDerivedAspect(pointA, pointB, aspectName) {
 
 export function getRuleInvalidReason(pointA, pointB, aspectName, pairType) {
   if (isRedundantDerivedAspect(pointA, pointB, aspectName)) {
-    return "REDUNDANT_DERIVED";
+    return "AXIS_DERIVED";
   }
 
   if (pairType === "POINT_TO_HOUSE") {
@@ -742,6 +791,21 @@ export function getStructuralAspectWeight(aspectName) {
   return weights[aspectName] ?? 0;
 }
 
+export function calculateOrbDecayFactor(difference, effectiveOrb) {
+  if (effectiveOrb <= 0) {
+    return difference === 0 ? 1 : 0;
+  }
+
+  if (difference >= effectiveOrb) {
+    return 0;
+  }
+
+  const ratio = Math.abs(difference) / effectiveOrb;
+  const decay = 1 - (ratio * 0.55);
+
+  return Number(Math.max(0, Math.min(1, decay)).toFixed(4));
+}
+
 export function calculateResonanceScore(
   difference,
   effectiveOrb,
@@ -769,12 +833,31 @@ export function calculateFinalPhenomenologicalWeight(
   ).toFixed(4));
 }
 
-export function calculateStructuralStrength(aspect, resonanceScore) {
+export function calculateStructuralStrength(aspect, resonanceScore, difference, effectiveOrb) {
   if (aspect.layer !== "structural") {
     return 0;
   }
 
-  return Number((resonanceScore * getStructuralAspectWeight(aspect.name)).toFixed(4));
+  const structuralAspectWeight = getStructuralAspectWeight(aspect.name);
+  const orbDecayFactor = calculateOrbDecayFactor(difference, effectiveOrb);
+
+  return Number((resonanceScore * structuralAspectWeight * orbDecayFactor).toFixed(4));
+}
+
+export function classifyStructuralStrength(structuralStrength) {
+  if (structuralStrength >= 0.85) {
+    return "dominant";
+  }
+
+  if (structuralStrength >= 0.65) {
+    return "strong";
+  }
+
+  if (structuralStrength >= 0.45) {
+    return "moderate";
+  }
+
+  return "background";
 }
 
 export function classifyResonance(score) {
@@ -862,8 +945,12 @@ export function getMinimumResonance(aspect, pointA, pointB, pairType) {
 }
 
 export function getStructuralGroup(aspect, pointA, pointB) {
+  if (hasSymbolicRefiner(pointA, pointB)) {
+    return "symbolicRefiners";
+  }
+
   if (aspect.layer !== "structural") {
-    return "modulator";
+    return "modulators";
   }
 
   const eligibilityA = getStructuralEligibility(pointA);
@@ -873,20 +960,20 @@ export function getStructuralGroup(aspect, pointA, pointB) {
     return "structuralCore";
   }
 
+  if (hasSupportiveStructuralBody(pointA, pointB) || eligibilityA === "semi" || eligibilityB === "semi") {
+    return "supportiveStructural";
+  }
+
   return "supportiveStructural";
 }
 
 export function isAuditOnlyReason(reason) {
-  return reason === "MANDATORY_STRUCTURAL_PAIR" || reason === "REDUNDANT_DERIVED";
+  return reason === "MANDATORY_STRUCTURAL_PAIR" || reason === "REDUNDANT_DERIVED" || reason === "AXIS_DERIVED";
 }
 
 export function isAspectRelevant(aspect, resonanceScore, minimumResonance, isRenderable) {
   if (!isRenderable) {
     return false;
-  }
-
-  if (aspect.layer === "structural") {
-    return resonanceScore >= minimumResonance;
   }
 
   return resonanceScore >= minimumResonance;
@@ -925,11 +1012,14 @@ export function buildAspectResult(
     ? getMinimumResonance(aspect, pointA, pointB, pairType)
     : getBaseMinimumResonance(aspect);
 
-  const isRedundantDerived = invalidReason === "REDUNDANT_DERIVED";
+  const isAxisDerived = invalidReason === "AXIS_DERIVED";
+  const isRedundantDerived = isAxisDerived || invalidReason === "REDUNDANT_DERIVED";
   const isRenderable = !isAuditOnlyReason(invalidReason);
   const isRelevant = isAspectRelevant(aspect, resonanceScore, minimumResonance, isRenderable);
   const structuralGroup = pointA && pointB ? getStructuralGroup(aspect, pointA, pointB) : aspect.layer;
   const structuralExists = aspect.layer === "structural" && difference <= effectiveOrb;
+  const orbDecayFactor = calculateOrbDecayFactor(difference, effectiveOrb);
+  const structuralStrength = calculateStructuralStrength(aspect, resonanceScore, difference, effectiveOrb);
 
   return {
     aspect: aspect.name,
@@ -948,11 +1038,15 @@ export function buildAspectResult(
     layer: aspect.layer,
     structuralGroup,
     structuralPriority: aspect.structuralPriority,
+    canonicalAxis: pointA && pointB ? isAxisPair(pointA, pointB) : false,
+    isAxisDerived,
     structuralEligibleA: pointA ? getStructuralEligibility(pointA) : null,
     structuralEligibleB: pointB ? getStructuralEligibility(pointB) : null,
     structuralExists,
     structuralAspectWeight: getStructuralAspectWeight(aspect.name),
-    structuralStrength: calculateStructuralStrength(aspect, resonanceScore),
+    orbDecayFactor,
+    structuralStrength,
+    structuralClass: structuralExists ? classifyStructuralStrength(structuralStrength) : null,
     isRedundantDerived,
     isMinor: aspect.isMinor,
     isStructural: aspect.isStructural,
@@ -1169,7 +1263,11 @@ export function getGroupRank(aspect) {
     return 1;
   }
 
-  return 2;
+  if (aspect.structuralGroup === "symbolicRefiners") {
+    return 2;
+  }
+
+  return 3;
 }
 
 export function sortAspects(a, b) {
@@ -1207,7 +1305,7 @@ export function getFirstAspectName(result) {
 }
 
 export function getBestGroupRank(result) {
-  return getGroupRank(getBestAspect(result) ?? { structuralGroup: "modulator" });
+  return getGroupRank(getBestAspect(result) ?? { structuralGroup: "modulators" });
 }
 
 export function getBestPhenomenologicalWeight(result) {
@@ -1327,7 +1425,8 @@ export function buildOutputGroups(results) {
   return {
     structuralCore: filterResultAspectsByGroup(results, "structuralCore"),
     supportiveStructural: filterResultAspectsByGroup(results, "supportiveStructural"),
-    modulators: filterResultAspectsByGroup(results, "modulator")
+    symbolicRefiners: filterResultAspectsByGroup(results, "symbolicRefiners"),
+    modulators: filterResultAspectsByGroup(results, "modulators")
   };
 }
 
@@ -1337,6 +1436,7 @@ export function buildPipeOutputGroups(results) {
   return {
     structuralCore: formatPipeResults(groupedResults.structuralCore),
     supportiveStructural: formatPipeResults(groupedResults.supportiveStructural),
+    symbolicRefiners: formatPipeResults(groupedResults.symbolicRefiners),
     modulators: formatPipeResults(groupedResults.modulators)
   };
 }
@@ -1372,6 +1472,7 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
   let astrologicaInvalidAspects = 0;
   let lowResonanceAspects = 0;
   let redundantDerivedAspects = 0;
+  let axisDerivedAspects = 0;
   const ignoredHousesCount = safeHouses.length - housePoints.length;
 
   for (let i = 0; i < allPoints.length; i += 1) {
@@ -1398,6 +1499,10 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
           .filter((aspect) => {
             if (aspect.isRedundantDerived) {
               redundantDerivedAspects += 1;
+            }
+
+            if (aspect.isAxisDerived) {
+              axisDerivedAspects += 1;
             }
 
             if (!aspect.validAstrologica) {
@@ -1432,6 +1537,7 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
 
   const structuralCoreAspectsCount = countAspectsInResults(outputGroups.structuralCore);
   const supportiveStructuralAspectsCount = countAspectsInResults(outputGroups.supportiveStructural);
+  const symbolicRefinersAspectsCount = countAspectsInResults(outputGroups.symbolicRefiners);
   const modulatorAspectsCount = countAspectsInResults(outputGroups.modulators);
   const totalAspectsFound = countAspectsInResults(sortedResults);
 
@@ -1448,9 +1554,11 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
       astrologicaInvalidAspects,
       lowResonanceAspects,
       redundantDerivedAspects,
+      axisDerivedAspects,
       aspectsFound: totalAspectsFound,
       structuralCoreCount: structuralCoreAspectsCount,
       supportiveStructuralCount: supportiveStructuralAspectsCount,
+      symbolicRefinersCount: symbolicRefinersAspectsCount,
       modulatorsCount: modulatorAspectsCount,
       options: normalizedOptions,
       format: "pipe",
@@ -1470,9 +1578,11 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
     astrologicaInvalidAspects,
     lowResonanceAspects,
     redundantDerivedAspects,
+    axisDerivedAspects,
     aspectsFound: totalAspectsFound,
     structuralCoreCount: structuralCoreAspectsCount,
     supportiveStructuralCount: supportiveStructuralAspectsCount,
+    symbolicRefinersCount: symbolicRefinersAspectsCount,
     modulatorsCount: modulatorAspectsCount,
     options: normalizedOptions,
     results: sortedResults,
