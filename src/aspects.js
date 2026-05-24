@@ -1,19 +1,184 @@
 export const ASPECTS = [
-  { name: "CONJUNCAO", angle: 0.0, orb: 6.0, family: "ptolemaico", harmonic: 1, isMinor: false, isStructural: true, isKarmic: false },
-  { name: "OPOSICAO", angle: 180.0, orb: 5.0, family: "ptolemaico", harmonic: 2, isMinor: false, isStructural: true, isKarmic: false },
-  { name: "QUADRATURA", angle: 90.0, orb: 4.0, family: "ptolemaico", harmonic: 4, isMinor: false, isStructural: true, isKarmic: false },
-  { name: "TRIGONO", angle: 120.0, orb: 4.0, family: "ptolemaico", harmonic: 3, isMinor: false, isStructural: true, isKarmic: false },
-  { name: "SEXTIL", angle: 60.0, orb: 3.0, family: "ptolemaico", harmonic: 6, isMinor: false, isStructural: true, isKarmic: false },
-  { name: "VIGINTIL", angle: 18.0, orb: 0.5, family: "kepleriano", harmonic: 20, isMinor: true, isStructural: false, isKarmic: false },
-  { name: "DECIL", angle: 36.0, orb: 1.0, family: "kepleriano", harmonic: 10, isMinor: true, isStructural: false, isKarmic: false },
-  { name: "QUINTIL", angle: 72.0, orb: 2.0, family: "kepleriano", harmonic: 5, isMinor: true, isStructural: false, isKarmic: false },
-  { name: "TRIDECIL", angle: 108.0, orb: 1.0, family: "kepleriano", harmonic: 10, isMinor: true, isStructural: false, isKarmic: false },
-  { name: "BIQUINTIL", angle: 144.0, orb: 2.0, family: "kepleriano", harmonic: 5, isMinor: true, isStructural: false, isKarmic: false },
-  { name: "SEMIQUADRATURA", angle: 45.0, orb: 1.5, family: "octil", harmonic: 8, isMinor: true, isStructural: false, isKarmic: false },
-  { name: "SESQUIQUADRADO", angle: 135.0, orb: 1.5, family: "octil", harmonic: 8, isMinor: true, isStructural: false, isKarmic: false },
-  { name: "QUINCUNCIO", angle: 150.0, orb: 2.0, family: "inconjunto", harmonic: 12, isMinor: true, isStructural: false, isKarmic: false },
-  { name: "SEPTIL", angle: 51.4167, orb: 1.5, family: "septenario", harmonic: 7, isMinor: true, isStructural: false, isKarmic: true },
-  { name: "NOVIL", angle: 40.0, orb: 1.0, family: "novil", harmonic: 9, isMinor: true, isStructural: false, isKarmic: true }
+  {
+    name: "CONJUNCAO",
+    angle: 0.0,
+    orb: 6.0,
+    family: "ptolemaico",
+    harmonic: 1,
+    isMinor: false,
+    isStructural: true,
+    isKarmic: false,
+    layer: "structural",
+    structuralPriority: true
+  },
+  {
+    name: "OPOSICAO",
+    angle: 180.0,
+    orb: 6.0,
+    family: "ptolemaico",
+    harmonic: 2,
+    isMinor: false,
+    isStructural: true,
+    isKarmic: false,
+    layer: "structural",
+    structuralPriority: true
+  },
+  {
+    name: "QUADRATURA",
+    angle: 90.0,
+    orb: 5.0,
+    family: "ptolemaico",
+    harmonic: 4,
+    isMinor: false,
+    isStructural: true,
+    isKarmic: false,
+    layer: "structural",
+    structuralPriority: true
+  },
+  {
+    name: "TRIGONO",
+    angle: 120.0,
+    orb: 5.0,
+    family: "ptolemaico",
+    harmonic: 3,
+    isMinor: false,
+    isStructural: true,
+    isKarmic: false,
+    layer: "structural",
+    structuralPriority: true
+  },
+  {
+    name: "SEXTIL",
+    angle: 60.0,
+    orb: 4.0,
+    family: "ptolemaico",
+    harmonic: 6,
+    isMinor: false,
+    isStructural: true,
+    isKarmic: false,
+    layer: "structural",
+    structuralPriority: true
+  },
+  {
+    name: "VIGINTIL",
+    angle: 18.0,
+    orb: 0.5,
+    family: "kepleriano",
+    harmonic: 20,
+    isMinor: true,
+    isStructural: false,
+    isKarmic: false,
+    layer: "modulator",
+    structuralPriority: false
+  },
+  {
+    name: "DECIL",
+    angle: 36.0,
+    orb: 1.0,
+    family: "kepleriano",
+    harmonic: 10,
+    isMinor: true,
+    isStructural: false,
+    isKarmic: false,
+    layer: "modulator",
+    structuralPriority: false
+  },
+  {
+    name: "QUINTIL",
+    angle: 72.0,
+    orb: 2.0,
+    family: "kepleriano",
+    harmonic: 5,
+    isMinor: true,
+    isStructural: false,
+    isKarmic: false,
+    layer: "modulator",
+    structuralPriority: false
+  },
+  {
+    name: "TRIDECIL",
+    angle: 108.0,
+    orb: 1.0,
+    family: "kepleriano",
+    harmonic: 10,
+    isMinor: true,
+    isStructural: false,
+    isKarmic: false,
+    layer: "modulator",
+    structuralPriority: false
+  },
+  {
+    name: "BIQUINTIL",
+    angle: 144.0,
+    orb: 2.0,
+    family: "kepleriano",
+    harmonic: 5,
+    isMinor: true,
+    isStructural: false,
+    isKarmic: false,
+    layer: "modulator",
+    structuralPriority: false
+  },
+  {
+    name: "SEMIQUADRATURA",
+    angle: 45.0,
+    orb: 1.5,
+    family: "octil",
+    harmonic: 8,
+    isMinor: true,
+    isStructural: false,
+    isKarmic: false,
+    layer: "modulator",
+    structuralPriority: false
+  },
+  {
+    name: "SESQUIQUADRADO",
+    angle: 135.0,
+    orb: 1.5,
+    family: "octil",
+    harmonic: 8,
+    isMinor: true,
+    isStructural: false,
+    isKarmic: false,
+    layer: "modulator",
+    structuralPriority: false
+  },
+  {
+    name: "QUINCUNCIO",
+    angle: 150.0,
+    orb: 2.0,
+    family: "inconjunto",
+    harmonic: 12,
+    isMinor: true,
+    isStructural: false,
+    isKarmic: false,
+    layer: "modulator",
+    structuralPriority: false
+  },
+  {
+    name: "SEPTIL",
+    angle: 51.4167,
+    orb: 1.5,
+    family: "septenario",
+    harmonic: 7,
+    isMinor: true,
+    isStructural: false,
+    isKarmic: true,
+    layer: "modulator",
+    structuralPriority: false
+  },
+  {
+    name: "NOVIL",
+    angle: 40.0,
+    orb: 1.0,
+    family: "novil",
+    harmonic: 9,
+    isMinor: true,
+    isStructural: false,
+    isKarmic: true,
+    layer: "modulator",
+    structuralPriority: false
+  }
 ];
 
 export const HOUSE_NAMES = {
@@ -498,7 +663,7 @@ export function getAspectFalloffMultiplier(aspectName) {
 }
 
 export function getFamilyPriorityMultiplier(aspect) {
-  if (aspect.isStructural) {
+  if (aspect.layer === "structural") {
     return 1.0;
   }
 
@@ -521,15 +686,25 @@ export function calculateResonanceScore(
   difference,
   effectiveOrb,
   compositionMultiplier = 1,
-  conjunctionFalloffMultiplier = 1,
-  aspectFalloffMultiplier = 1
+  conjunctionFalloffMultiplier = 1
 ) {
   const baseScore = calculateResonanceBaseScore(difference, effectiveOrb);
 
   return Number((
     baseScore *
     compositionMultiplier *
-    conjunctionFalloffMultiplier *
+    conjunctionFalloffMultiplier
+  ).toFixed(4));
+}
+
+export function calculateFinalPhenomenologicalWeight(
+  resonanceScore,
+  familyPriorityMultiplier,
+  aspectFalloffMultiplier
+) {
+  return Number((
+    resonanceScore *
+    familyPriorityMultiplier *
     aspectFalloffMultiplier
   ).toFixed(4));
 }
@@ -559,8 +734,8 @@ export function classifyResonance(score) {
 }
 
 export function getBaseMinimumResonance(aspect) {
-  if (aspect.isStructural) {
-    return 0.15;
+  if (aspect.layer === "structural") {
+    return 0;
   }
 
   if (aspect.family === "septenario" || aspect.family === "novil") {
@@ -575,7 +750,7 @@ export function getBaseMinimumResonance(aspect) {
 }
 
 export function getPartOfFortuneMinimumResonance(aspect) {
-  if (aspect.isStructural) {
+  if (aspect.layer === "structural") {
     return 0.2;
   }
 
@@ -608,6 +783,18 @@ export function getMinimumResonance(aspect, pointA, pointB, pairType) {
   return Number(minimumResonance.toFixed(4));
 }
 
+export function isAspectRelevant(aspect, resonanceScore, minimumResonance, isRenderable) {
+  if (!isRenderable) {
+    return false;
+  }
+
+  if (aspect.layer === "structural") {
+    return true;
+  }
+
+  return resonanceScore >= minimumResonance;
+}
+
 export function buildAspectResult(
   aspect,
   difference,
@@ -628,18 +815,21 @@ export function buildAspectResult(
     difference,
     effectiveOrb,
     compositionMultiplier,
-    conjunctionFalloffMultiplier,
-    aspectFalloffMultiplier
+    conjunctionFalloffMultiplier
   );
 
-  const finalPhenomenologicalWeight = Number((resonanceScore * familyPriorityMultiplier).toFixed(4));
+  const finalPhenomenologicalWeight = calculateFinalPhenomenologicalWeight(
+    resonanceScore,
+    familyPriorityMultiplier,
+    aspectFalloffMultiplier
+  );
 
   const minimumResonance = pointA && pointB
     ? getMinimumResonance(aspect, pointA, pointB, pairType)
     : getBaseMinimumResonance(aspect);
 
   const isRenderable = invalidReason !== "MANDATORY_STRUCTURAL_PAIR";
-  const isRelevant = isRenderable && resonanceScore >= minimumResonance;
+  const isRelevant = isAspectRelevant(aspect, resonanceScore, minimumResonance, isRenderable);
 
   return {
     aspect: aspect.name,
@@ -655,6 +845,8 @@ export function buildAspectResult(
     invalidReason,
     family: aspect.family,
     harmonic: aspect.harmonic,
+    layer: aspect.layer,
+    structuralPriority: aspect.structuralPriority,
     isMinor: aspect.isMinor,
     isStructural: aspect.isStructural,
     isKarmic: aspect.isKarmic,
@@ -689,7 +881,7 @@ export function identifyAspects(degreeA, degreeB, aspectNames = null) {
       return buildAspectResult(aspect, difference, distance, aspect.orb, null);
     })
     .filter((result) => result.withinOrb && result.isRelevant)
-    .sort((a, b) => a.difference - b.difference);
+    .sort(sortAspects);
 
   return {
     input: {
@@ -726,7 +918,7 @@ export function identifyAspectsForPair(pointA, pointB, aspectNames = null, pairT
       );
     })
     .filter((result) => result.validGeometry)
-    .sort((a, b) => a.difference - b.difference);
+    .sort(sortAspects);
 
   return {
     input: {
@@ -850,12 +1042,54 @@ export function shouldIncludePair(pairType, options) {
   return false;
 }
 
+export function getLayerRank(aspect) {
+  if (aspect.layer === "structural") {
+    return 0;
+  }
+
+  return 1;
+}
+
+export function sortAspects(a, b) {
+  const layerDifference = getLayerRank(a) - getLayerRank(b);
+
+  if (layerDifference !== 0) {
+    return layerDifference;
+  }
+
+  if (b.finalPhenomenologicalWeight !== a.finalPhenomenologicalWeight) {
+    return b.finalPhenomenologicalWeight - a.finalPhenomenologicalWeight;
+  }
+
+  if (b.resonanceScore !== a.resonanceScore) {
+    return b.resonanceScore - a.resonanceScore;
+  }
+
+  return a.difference - b.difference;
+}
+
+export function getBestAspect(result) {
+  return result.aspects[0] ?? null;
+}
+
 export function getBestDifference(result) {
-  return result.aspects[0]?.difference ?? Number.POSITIVE_INFINITY;
+  return getBestAspect(result)?.difference ?? Number.POSITIVE_INFINITY;
 }
 
 export function getFirstAspectName(result) {
-  return result.aspects[0]?.aspect ?? "";
+  return getBestAspect(result)?.aspect ?? "";
+}
+
+export function getBestLayerRank(result) {
+  return getLayerRank(getBestAspect(result) ?? { layer: "modulator" });
+}
+
+export function getBestPhenomenologicalWeight(result) {
+  return getBestAspect(result)?.finalPhenomenologicalWeight ?? 0;
+}
+
+export function getBestResonance(result) {
+  return getBestAspect(result)?.resonanceScore ?? 0;
 }
 
 export function sortResults(results, sortBy) {
@@ -865,6 +1099,20 @@ export function sortResults(results, sortBy) {
 
   return [...results].sort((a, b) => {
     if (sortBy === "orb") {
+      const layerDifference = getBestLayerRank(a) - getBestLayerRank(b);
+
+      if (layerDifference !== 0) {
+        return layerDifference;
+      }
+
+      if (getBestPhenomenologicalWeight(b) !== getBestPhenomenologicalWeight(a)) {
+        return getBestPhenomenologicalWeight(b) - getBestPhenomenologicalWeight(a);
+      }
+
+      if (getBestResonance(b) !== getBestResonance(a)) {
+        return getBestResonance(b) - getBestResonance(a);
+      }
+
       return getBestDifference(a) - getBestDifference(b);
     }
 
@@ -932,6 +1180,31 @@ export function formatPipeText(pipeResults) {
   return pipeResults.join("\n");
 }
 
+export function filterResultAspectsByLayer(results, layer) {
+  return results
+    .map((result) => ({
+      ...result,
+      aspects: result.aspects.filter((aspect) => aspect.layer === layer)
+    }))
+    .filter((result) => result.aspects.length > 0);
+}
+
+export function buildOutputGroups(results) {
+  return {
+    structuralCore: filterResultAspectsByLayer(results, "structural"),
+    modulators: filterResultAspectsByLayer(results, "modulator")
+  };
+}
+
+export function buildPipeOutputGroups(results) {
+  const groupedResults = buildOutputGroups(results);
+
+  return {
+    structuralCore: formatPipeResults(groupedResults.structuralCore),
+    modulators: formatPipeResults(groupedResults.modulators)
+  };
+}
+
 export function identifyBatchAspects(points, houses = [], options = {}) {
   const safePoints = points ?? [];
   const safeHouses = houses ?? [];
@@ -993,7 +1266,8 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
             }
 
             return true;
-          });
+          })
+          .sort(sortAspects);
 
         if (validAspects.length > 0) {
           results.push({
@@ -1009,6 +1283,7 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
   }
 
   const sortedResults = sortResults(results, normalizedOptions.sortBy);
+  const outputGroups = buildOutputGroups(sortedResults);
 
   if (normalizedOptions.outputFormat === "pipe") {
     const pipeResults = formatPipeResults(sortedResults);
@@ -1023,10 +1298,13 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
       astrologicaInvalidAspects,
       lowResonanceAspects,
       aspectsFound: sortedResults.length,
+      structuralCoreCount: outputGroups.structuralCore.length,
+      modulatorsCount: outputGroups.modulators.length,
       options: normalizedOptions,
       format: "pipe",
       results: pipeResults,
-      resultsText: formatPipeText(pipeResults)
+      resultsText: formatPipeText(pipeResults),
+      outputGroups: buildPipeOutputGroups(sortedResults)
     };
   }
 
@@ -1040,7 +1318,10 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
     astrologicaInvalidAspects,
     lowResonanceAspects,
     aspectsFound: sortedResults.length,
+    structuralCoreCount: outputGroups.structuralCore.length,
+    modulatorsCount: outputGroups.modulators.length,
     options: normalizedOptions,
-    results: sortedResults
+    results: sortedResults,
+    outputGroups
   };
 }
