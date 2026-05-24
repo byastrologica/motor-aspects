@@ -181,6 +181,10 @@ export function isHouse(point) {
   return point.type === "HOUSE";
 }
 
+export function isPlanet(point) {
+  return point.type === "PLANETA";
+}
+
 export function isLuminary(point) {
   return LUMINARIES.includes(normalizeToken(point.name));
 }
@@ -233,12 +237,24 @@ export function getOtherPoint(pointA, pointB, predicate) {
 }
 
 export function isAllowedFixedStarTarget(point) {
-  return point.type === "PLANETA" || isHouse(point) || isNode(point);
+  return isPlanet(point) || isNode(point);
+}
+
+export function isAllowedAngleTarget(point) {
+  return isPlanet(point) || isNode(point);
 }
 
 export function getRuleInvalidReason(pointA, pointB, aspectName, pairType) {
-  if (pairType === "POINT_TO_HOUSE" && !isMajorAspectName(aspectName)) {
-    return "ANGLE_MINOR_ASPECT_NOT_ALLOWED";
+  if (pairType === "POINT_TO_HOUSE") {
+    const nonHousePoint = isHouse(pointA) ? pointB : pointA;
+
+    if (!isAllowedAngleTarget(nonHousePoint)) {
+      return "ANGLE_TARGET_NOT_ALLOWED";
+    }
+
+    if (!isMajorAspectName(aspectName)) {
+      return "ANGLE_MINOR_ASPECT_NOT_ALLOWED";
+    }
   }
 
   if (isFixedStar(pointA) && isFixedStar(pointB)) {
@@ -281,7 +297,7 @@ export function calculateEffectiveOrb(pointA, pointB, aspect) {
   }
 
   if (hasFixedStar(pointA, pointB)) {
-    return hasLuminary(pointA, pointB) ? 1.5 : 1.0;
+    return 1.0;
   }
 
   if (hasLuminary(pointA, pointB) && isMajorAspectName(aspectName)) {
@@ -300,7 +316,7 @@ export function calculateEffectiveOrb(pointA, pointB, aspect) {
   return Math.max(0, roundDegree(effectiveOrb));
 }
 
-export function calculateResonanceScore(difference, effectiveOrb) {
+export function calculateResonanceBaseScore(difference, effectiveOrb) {
   if (effectiveOrb <= 0) {
     return difference === 0 ? 1 : 0;
   }
@@ -315,27 +331,53 @@ export function calculateResonanceScore(difference, effectiveOrb) {
   return Number(score.toFixed(4));
 }
 
+export function getCompositionMultiplier(pointA, pointB) {
+  const aIsPlanet = isPlanet(pointA);
+  const bIsPlanet = isPlanet(pointB);
+  const aIsAsteroid = isAsteroid(pointA);
+  const bIsAsteroid = isAsteroid(pointB);
+
+  if (aIsAsteroid && bIsAsteroid) {
+    return 0.7;
+  }
+
+  if ((aIsPlanet && bIsAsteroid) || (bIsPlanet && aIsAsteroid)) {
+    return 0.85;
+  }
+
+  return 1.0;
+}
+
+export function calculateResonanceScore(difference, effectiveOrb, compositionMultiplier = 1) {
+  const baseScore = calculateResonanceBaseScore(difference, effectiveOrb);
+  return Number((baseScore * compositionMultiplier).toFixed(4));
+}
+
 export function classifyResonance(score) {
-  if (score >= 0.85) {
+  if (score >= 0.9) {
     return "dominante";
+  }
+
+  if (score >= 0.75) {
+    return "muito_forte";
   }
 
   if (score >= 0.6) {
     return "forte";
   }
 
-  if (score >= 0.35) {
+  if (score >= 0.45) {
     return "moderado";
   }
 
-  if (score >= 0.15) {
+  if (score >= 0.3) {
     return "fraco";
   }
 
   return "residual";
 }
 
-export function getMinimumResonance(aspect) {
+export function getBaseMinimumResonance(aspect) {
   if (aspect.isStructural) {
     return 0.15;
   }
@@ -351,9 +393,43 @@ export function getMinimumResonance(aspect) {
   return 0.35;
 }
 
-export function buildAspectResult(aspect, difference, distance, effectiveOrb, invalidReason) {
-  const resonanceScore = calculateResonanceScore(difference, effectiveOrb);
-  const minimumResonance = getMinimumResonance(aspect);
+export function getMinimumResonance(aspect, pointA, pointB, pairType) {
+  let minimumResonance = getBaseMinimumResonance(aspect);
+
+  if (pairType === "POINT_TO_HOUSE") {
+    minimumResonance += 0.1;
+  }
+
+  if (pairType === "POINT_TO_HOUSE" && hasFixedStar(pointA, pointB)) {
+    minimumResonance += 0.2;
+  }
+
+  return Number(minimumResonance.toFixed(4));
+}
+
+export function buildAspectResult(
+  aspect,
+  difference,
+  distance,
+  effectiveOrb,
+  invalidReason,
+  pointA = null,
+  pointB = null,
+  pairType = null
+) {
+  const compositionMultiplier =
+    pointA && pointB ? getCompositionMultiplier(pointA, pointB) : 1;
+
+  const resonanceBaseScore = calculateResonanceBaseScore(difference, effectiveOrb);
+  const resonanceScore = calculateResonanceScore(
+    difference,
+    effectiveOrb,
+    compositionMultiplier
+  );
+
+  const minimumResonance =
+    pointA && pointB ? getMinimumResonance(aspect, pointA, pointB, pairType) : getBaseMinimumResonance(aspect);
+
   const isRelevant = resonanceScore >= minimumResonance;
 
   return {
@@ -373,6 +449,8 @@ export function buildAspectResult(aspect, difference, distance, effectiveOrb, in
     isMinor: aspect.isMinor,
     isStructural: aspect.isStructural,
     isKarmic: aspect.isKarmic,
+    resonanceBaseScore,
+    compositionMultiplier,
     resonanceScore,
     resonanceClass: classifyResonance(resonanceScore),
     minimumResonance,
@@ -423,7 +501,16 @@ export function identifyAspectsForPair(pointA, pointB, aspectNames = null, pairT
       const invalidReason = getRuleInvalidReason(pointA, pointB, aspect.name, pairType);
       const effectiveOrb = calculateEffectiveOrb(pointA, pointB, aspect);
 
-      return buildAspectResult(aspect, difference, distance, effectiveOrb, invalidReason);
+      return buildAspectResult(
+        aspect,
+        difference,
+        distance,
+        effectiveOrb,
+        invalidReason,
+        pointA,
+        pointB,
+        pairType
+      );
     })
     .filter((result) => result.validGeometry)
     .sort((a, b) => a.difference - b.difference);
