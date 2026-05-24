@@ -1,19 +1,19 @@
 export const ASPECTS = [
-  { name: "CONJUNCAO", angle: 0.0, orb: 6.0 },
-  { name: "OPOSICAO", angle: 180.0, orb: 5.0 },
-  { name: "QUADRATURA", angle: 90.0, orb: 4.0 },
-  { name: "TRIGONO", angle: 120.0, orb: 4.0 },
-  { name: "SEXTIL", angle: 60.0, orb: 3.0 },
-  { name: "VIGINTIL", angle: 18.0, orb: 0.5 },
-  { name: "DECIL", angle: 36.0, orb: 1.0 },
-  { name: "QUINTIL", angle: 72.0, orb: 2.0 },
-  { name: "TRIDECIL", angle: 108.0, orb: 1.0 },
-  { name: "BIQUINTIL", angle: 144.0, orb: 2.0 },
-  { name: "SEMIQUADRATURA", angle: 45.0, orb: 1.5 },
-  { name: "SESQUIQUADRADO", angle: 135.0, orb: 1.5 },
-  { name: "QUINCUNCIO", angle: 150.0, orb: 2.0 },
-  { name: "SEPTIL", angle: 51.4167, orb: 1.5 },
-  { name: "NOVIL", angle: 40.0, orb: 1.0 }
+  { name: "CONJUNCAO", angle: 0.0, orb: 6.0, family: "ptolemaico", harmonic: 1, isMinor: false, isStructural: true, isKarmic: false },
+  { name: "OPOSICAO", angle: 180.0, orb: 5.0, family: "ptolemaico", harmonic: 2, isMinor: false, isStructural: true, isKarmic: false },
+  { name: "QUADRATURA", angle: 90.0, orb: 4.0, family: "ptolemaico", harmonic: 4, isMinor: false, isStructural: true, isKarmic: false },
+  { name: "TRIGONO", angle: 120.0, orb: 4.0, family: "ptolemaico", harmonic: 3, isMinor: false, isStructural: true, isKarmic: false },
+  { name: "SEXTIL", angle: 60.0, orb: 3.0, family: "ptolemaico", harmonic: 6, isMinor: false, isStructural: true, isKarmic: false },
+  { name: "VIGINTIL", angle: 18.0, orb: 0.5, family: "kepleriano", harmonic: 20, isMinor: true, isStructural: false, isKarmic: false },
+  { name: "DECIL", angle: 36.0, orb: 1.0, family: "kepleriano", harmonic: 10, isMinor: true, isStructural: false, isKarmic: false },
+  { name: "QUINTIL", angle: 72.0, orb: 2.0, family: "kepleriano", harmonic: 5, isMinor: true, isStructural: false, isKarmic: false },
+  { name: "TRIDECIL", angle: 108.0, orb: 1.0, family: "kepleriano", harmonic: 10, isMinor: true, isStructural: false, isKarmic: false },
+  { name: "BIQUINTIL", angle: 144.0, orb: 2.0, family: "kepleriano", harmonic: 5, isMinor: true, isStructural: false, isKarmic: false },
+  { name: "SEMIQUADRATURA", angle: 45.0, orb: 1.5, family: "octil", harmonic: 8, isMinor: true, isStructural: false, isKarmic: false },
+  { name: "SESQUIQUADRADO", angle: 135.0, orb: 1.5, family: "octil", harmonic: 8, isMinor: true, isStructural: false, isKarmic: false },
+  { name: "QUINCUNCIO", angle: 150.0, orb: 2.0, family: "inconjunto", harmonic: 12, isMinor: true, isStructural: false, isKarmic: false },
+  { name: "SEPTIL", angle: 51.4167, orb: 1.5, family: "septenario", harmonic: 7, isMinor: true, isStructural: false, isKarmic: true },
+  { name: "NOVIL", angle: 40.0, orb: 1.0, family: "novil", harmonic: 9, isMinor: true, isStructural: false, isKarmic: true }
 ];
 
 export const HOUSE_NAMES = {
@@ -251,6 +251,66 @@ export function calculateEffectiveOrb(pointA, pointB, aspect) {
   return Math.max(0, roundDegree(effectiveOrb));
 }
 
+export function calculateResonanceScore(difference, effectiveOrb) {
+  if (effectiveOrb <= 0) {
+    return difference === 0 ? 1 : 0;
+  }
+
+  if (difference > effectiveOrb) {
+    return 0;
+  }
+
+  const ratio = Math.abs(difference) / effectiveOrb;
+  const score = Math.cos((Math.PI / 2) * ratio) ** 2;
+
+  return Number(score.toFixed(4));
+}
+
+export function classifyResonance(score) {
+  if (score >= 0.85) {
+    return "dominante";
+  }
+
+  if (score >= 0.6) {
+    return "forte";
+  }
+
+  if (score >= 0.35) {
+    return "moderado";
+  }
+
+  if (score >= 0.15) {
+    return "fraco";
+  }
+
+  return "residual";
+}
+
+export function buildAspectResult(aspect, difference, distance, effectiveOrb, invalidReason) {
+  const resonanceScore = calculateResonanceScore(difference, effectiveOrb);
+
+  return {
+    aspect: aspect.name,
+    angle: aspect.angle,
+    orb: aspect.orb,
+    effectiveOrb,
+    distance,
+    difference,
+    exact: difference === 0,
+    withinOrb: difference <= effectiveOrb,
+    validGeometry: difference <= effectiveOrb,
+    validAstrologica: difference <= effectiveOrb && invalidReason === null,
+    invalidReason,
+    family: aspect.family,
+    harmonic: aspect.harmonic,
+    isMinor: aspect.isMinor,
+    isStructural: aspect.isStructural,
+    isKarmic: aspect.isKarmic,
+    resonanceScore,
+    resonanceClass: classifyResonance(resonanceScore)
+  };
+}
+
 export function identifyAspects(degreeA, degreeB, aspectNames = null) {
   const normalizedDegreeA = normalizeDegree(degreeA);
   const normalizedDegreeB = normalizeDegree(degreeB);
@@ -264,17 +324,7 @@ export function identifyAspects(degreeA, degreeB, aspectNames = null) {
   const matches = aspectsToCheck
     .map((aspect) => {
       const difference = roundDegree(Math.abs(distance - aspect.angle));
-
-      return {
-        aspect: aspect.name,
-        angle: aspect.angle,
-        orb: aspect.orb,
-        effectiveOrb: aspect.orb,
-        distance,
-        difference,
-        exact: difference === 0,
-        withinOrb: difference <= aspect.orb
-      };
+      return buildAspectResult(aspect, difference, distance, aspect.orb, null);
     })
     .filter((result) => result.withinOrb)
     .sort((a, b) => a.difference - b.difference);
@@ -302,21 +352,8 @@ export function identifyAspectsForPair(pointA, pointB, aspectNames = null) {
       const difference = roundDegree(Math.abs(distance - aspect.angle));
       const invalidReason = getRuleInvalidReason(pointA, pointB, aspect.name);
       const effectiveOrb = calculateEffectiveOrb(pointA, pointB, aspect);
-      const withinOrb = difference <= effectiveOrb;
 
-      return {
-        aspect: aspect.name,
-        angle: aspect.angle,
-        orb: aspect.orb,
-        effectiveOrb,
-        distance,
-        difference,
-        exact: difference === 0,
-        withinOrb,
-        validGeometry: withinOrb,
-        validAstrologica: withinOrb && invalidReason === null,
-        invalidReason
-      };
+      return buildAspectResult(aspect, difference, distance, effectiveOrb, invalidReason);
     })
     .filter((result) => result.validGeometry)
     .sort((a, b) => a.difference - b.difference);
