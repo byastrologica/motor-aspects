@@ -6,31 +6,26 @@ export const ASPECTS = [
   { name: "SEXTIL", angle: 60.0, orb: 3.0 },
   { name: "VIGINTIL", angle: 18.0, orb: 0.5 },
   { name: "DECIL", angle: 36.0, orb: 1.0 },
-  { name: "SEMIQUINTIL", angle: 36.0, orb: 1.0 },
   { name: "QUINTIL", angle: 72.0, orb: 2.0 },
   { name: "TRIDECIL", angle: 108.0, orb: 1.0 },
   { name: "BIQUINTIL", angle: 144.0, orb: 2.0 },
   { name: "SEMIQUADRATURA", angle: 45.0, orb: 1.5 },
   { name: "SESQUIQUADRADO", angle: 135.0, orb: 1.5 },
-  { name: "QUINQUNCIO", angle: 150.0, orb: 2.0 },
+  { name: "QUINCUNCIO", angle: 150.0, orb: 2.0 },
   { name: "SEPTIL", angle: 51.4167, orb: 1.5 },
   { name: "NOVIL", angle: 40.0, orb: 1.0 }
 ];
 
 export const HOUSE_NAMES = {
   1: "ASCENDENTE",
-  2: "CASA_2",
-  3: "CASA_3",
   4: "FUNDO_DO_CEU",
-  5: "CASA_5",
-  6: "CASA_6",
   7: "DESCENDENTE",
-  8: "CASA_8",
-  9: "CASA_9",
-  10: "MEIO_DO_CEU",
-  11: "CASA_11",
-  12: "CASA_12"
+  10: "MEIO_DO_CEU"
 };
+
+export const ANGULAR_HOUSES = [1, 4, 7, 10];
+
+export const ECLIPSE_ALLOWED_ASPECTS = ["CONJUNCAO", "OPOSICAO", "QUADRATURA"];
 
 export const DEFAULT_BATCH_OPTIONS = {
   includePointToPoint: true,
@@ -72,6 +67,44 @@ export function normalizeSpeed(value) {
   return number;
 }
 
+export function normalizeToken(value) {
+  return String(value)
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+}
+
+export function normalizeObjectType(type) {
+  const normalizedType = normalizeToken(type ?? "POINT");
+
+  const aliases = {
+    FIXED_STAR: "ESTRELA_FIXA",
+    ESTRELA: "ESTRELA_FIXA",
+    ESTRELA_FIXA: "ESTRELA_FIXA",
+    ECLIPSE: "ECLIPSE",
+    PLANETA: "PLANETA",
+    ASTEROIDE: "ASTEROIDE",
+    PONTO: "PONTO",
+    POINT: "PONTO",
+    HOUSE: "HOUSE"
+  };
+
+  return aliases[normalizedType] ?? normalizedType;
+}
+
+export function normalizeAspectName(name) {
+  const normalizedName = normalizeToken(name);
+
+  const aliases = {
+    SEMIQUINTIL: "DECIL",
+    QUINQUNCIO: "QUINCUNCIO",
+    QUINCUNCIO: "QUINCUNCIO"
+  };
+
+  return aliases[normalizedName] ?? normalizedName;
+}
+
 export function calculateAngularDistance(degreeA, degreeB) {
   const a = normalizeDegree(degreeA);
   const b = normalizeDegree(degreeB);
@@ -89,7 +122,7 @@ export function normalizeAspectNames(aspectNames) {
     throw new Error("options.aspectNames must be an array.");
   }
 
-  const normalizedNames = aspectNames.map((name) => String(name).trim().toUpperCase());
+  const normalizedNames = aspectNames.map((name) => normalizeAspectName(name));
 
   const validNames = ASPECTS.map((aspect) => aspect.name);
   const invalidNames = normalizedNames.filter((name) => !validNames.includes(name));
@@ -98,7 +131,7 @@ export function normalizeAspectNames(aspectNames) {
     throw new Error(`Invalid aspect name(s): ${invalidNames.join(", ")}.`);
   }
 
-  return normalizedNames;
+  return [...new Set(normalizedNames)];
 }
 
 export function normalizeSortBy(sortBy) {
@@ -173,7 +206,7 @@ export function normalizePoint(point, index) {
 
   return {
     ...point,
-    type: point.type ?? "POINT",
+    type: normalizeObjectType(point.type),
     longitude: normalizeDegree(point.longitude),
     speed: normalizeSpeed(point.speed)
   };
@@ -196,6 +229,10 @@ export function houseToPoint(house, index) {
 
   if (!Number.isInteger(houseNumber) || houseNumber < 1 || houseNumber > 12) {
     throw new Error("House number must be an integer from 1 to 12.");
+  }
+
+  if (!ANGULAR_HOUSES.includes(houseNumber)) {
+    return null;
   }
 
   return {
@@ -264,6 +301,35 @@ export function shouldIncludePair(pairType, options) {
   }
 
   return false;
+}
+
+export function isFixedStar(point) {
+  return point.type === "ESTRELA_FIXA";
+}
+
+export function isEclipse(point) {
+  return point.type === "ECLIPSE";
+}
+
+export function validateAstrologicaAspect(pointA, pointB, aspect) {
+  if (isFixedStar(pointA) && isFixedStar(pointB)) {
+    return {
+      validAstrologica: false,
+      invalidReason: "FIXED_STAR_TO_FIXED_STAR"
+    };
+  }
+
+  if ((isEclipse(pointA) || isEclipse(pointB)) && !ECLIPSE_ALLOWED_ASPECTS.includes(aspect.aspect)) {
+    return {
+      validAstrologica: false,
+      invalidReason: "ECLIPSE_ASPECT_NOT_ALLOWED"
+    };
+  }
+
+  return {
+    validAstrologica: true,
+    invalidReason: null
+  };
 }
 
 export function getBestDifference(result) {
@@ -365,16 +431,21 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
   }
 
   const normalizedPoints = safePoints.map((point, index) => normalizePoint(point, index));
-  const housePoints = safeHouses.map((house, index) => houseToPoint(house, index));
+  const housePoints = safeHouses
+    .map((house, index) => houseToPoint(house, index))
+    .filter(Boolean);
+
   const allPoints = [...normalizedPoints, ...housePoints];
 
   if (allPoints.length < 2) {
-    throw new Error("At least two points or houses are required.");
+    throw new Error("At least two points or angular houses are required.");
   }
 
   const results = [];
   let pairsChecked = 0;
   let pairsSkipped = 0;
+  let astrologicaInvalidAspects = 0;
+  const ignoredHousesCount = safeHouses.length - housePoints.length;
 
   for (let i = 0; i < allPoints.length; i += 1) {
     for (let j = i + 1; j < allPoints.length; j += 1) {
@@ -396,18 +467,36 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
       );
 
       if (calculation.aspects.length > 0) {
-        const aspectsWithMovement = calculation.aspects.map((aspect) => ({
-          ...aspect,
-          applyingSeparating: calculateApplyingSeparating(pointA, pointB, aspect.angle)
-        }));
+        const validAspects = calculation.aspects
+          .map((aspect) => {
+            const validation = validateAstrologicaAspect(pointA, pointB, aspect);
 
-        results.push({
-          pairType,
-          pointA: serializePoint(pointA),
-          pointB: serializePoint(pointB),
-          distance: calculation.distance,
-          aspects: aspectsWithMovement
-        });
+            return {
+              ...aspect,
+              validGeometry: true,
+              validAstrologica: validation.validAstrologica,
+              invalidReason: validation.invalidReason,
+              applyingSeparating: calculateApplyingSeparating(pointA, pointB, aspect.angle)
+            };
+          })
+          .filter((aspect) => {
+            if (!aspect.validAstrologica) {
+              astrologicaInvalidAspects += 1;
+              return false;
+            }
+
+            return true;
+          });
+
+        if (validAspects.length > 0) {
+          results.push({
+            pairType,
+            pointA: serializePoint(pointA),
+            pointB: serializePoint(pointB),
+            distance: calculation.distance,
+            aspects: validAspects
+          });
+        }
       }
     }
   }
@@ -420,9 +509,11 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
     return {
       pointsCount: normalizedPoints.length,
       housesCount: housePoints.length,
+      ignoredHousesCount,
       totalObjectsCount: allPoints.length,
       pairsChecked,
       pairsSkipped,
+      astrologicaInvalidAspects,
       aspectsFound: sortedResults.length,
       options: normalizedOptions,
       format: "pipe",
@@ -434,9 +525,11 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
   return {
     pointsCount: normalizedPoints.length,
     housesCount: housePoints.length,
+    ignoredHousesCount,
     totalObjectsCount: allPoints.length,
     pairsChecked,
     pairsSkipped,
+    astrologicaInvalidAspects,
     aspectsFound: sortedResults.length,
     options: normalizedOptions,
     results: sortedResults
