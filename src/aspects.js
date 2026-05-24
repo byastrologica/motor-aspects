@@ -128,7 +128,7 @@ export const ASPECTS = [
     isMinor: true,
     isStructural: false,
     isKarmic: false,
-    layer: "modulator",
+    layer: "structuralTensionModifier",
     structuralPriority: false
   },
   {
@@ -140,7 +140,7 @@ export const ASPECTS = [
     isMinor: true,
     isStructural: false,
     isKarmic: false,
-    layer: "modulator",
+    layer: "structuralTensionModifier",
     structuralPriority: false
   },
   {
@@ -152,7 +152,7 @@ export const ASPECTS = [
     isMinor: true,
     isStructural: false,
     isKarmic: false,
-    layer: "modulator",
+    layer: "structuralTensionModifier",
     structuralPriority: false
   },
   {
@@ -198,6 +198,12 @@ export const MAJOR_ASPECTS = [
   "SEXTIL"
 ];
 
+export const STRUCTURAL_TENSION_ASPECTS = [
+  "SEMIQUADRATURA",
+  "SESQUIQUADRADO",
+  "QUINCUNCIO"
+];
+
 export const FIXED_STAR_ALLOWED_ASPECTS = ["CONJUNCAO", "OPOSICAO"];
 export const ECLIPSE_ALLOWED_ASPECTS = ["CONJUNCAO", "OPOSICAO", "QUADRATURA"];
 
@@ -210,6 +216,7 @@ export const NODES = ["NODO NORTE", "NODO SUL"];
 
 export const CANONICAL_AXIS_ENDPOINTS = ["NODO NORTE", "ASCENDENTE", "MEIO_DO_CEU"];
 export const DERIVED_AXIS_ENDPOINTS = ["NODO SUL", "DESCENDENTE", "FUNDO_DO_CEU"];
+export const AXIS_ENDPOINTS = [...CANONICAL_AXIS_ENDPOINTS, ...DERIVED_AXIS_ENDPOINTS];
 
 export const DEFAULT_BATCH_OPTIONS = {
   includePointToPoint: true,
@@ -341,6 +348,10 @@ export function isMajorAspectName(aspectName) {
   return MAJOR_ASPECTS.includes(aspectName);
 }
 
+export function isStructuralTensionAspectName(aspectName) {
+  return STRUCTURAL_TENSION_ASPECTS.includes(aspectName);
+}
+
 export function isFixedStar(point) {
   return point.type === "ESTRELA_FIXA";
 }
@@ -393,6 +404,10 @@ export function isTranspersonalPlanet(point) {
   return TRANSPERSONAL_PLANETS.includes(normalizeToken(point.name));
 }
 
+export function isAxisEndpoint(point) {
+  return AXIS_ENDPOINTS.includes(normalizeToken(point.name));
+}
+
 export function isCanonicalAxisEndpoint(point) {
   return CANONICAL_AXIS_ENDPOINTS.includes(normalizeToken(point.name));
 }
@@ -425,12 +440,20 @@ export function hasPartOfFortune(pointA, pointB) {
   return isPartOfFortune(pointA) || isPartOfFortune(pointB);
 }
 
-export function hasSymbolicRefiner(pointA, pointB) {
+export function hasSymbolicRefinerBody(pointA, pointB) {
   return (
     isAsteroid(pointA) ||
     isAsteroid(pointB) ||
     isPartOfFortune(pointA) ||
     isPartOfFortune(pointB)
+  );
+}
+
+export function hasMicroRefinerBody(pointA, pointB) {
+  return (
+    isPartOfFortune(pointA) ||
+    isPartOfFortune(pointB) ||
+    (isAsteroid(pointA) && isAsteroid(pointB))
   );
 }
 
@@ -510,8 +533,45 @@ export function isMandatoryStructuralPair(pointA, pointB) {
   return mandatoryPairs.includes(pair);
 }
 
+export function getAxisFamily(point) {
+  const name = normalizeToken(point.name);
+
+  if (name === "NODO NORTE" || name === "NODO SUL") {
+    return "nodal";
+  }
+
+  if (name === "ASCENDENTE" || name === "DESCENDENTE") {
+    return "horizon";
+  }
+
+  if (name === "MEIO_DO_CEU" || name === "FUNDO_DO_CEU") {
+    return "meridian";
+  }
+
+  return null;
+}
+
 export function isAxisPair(pointA, pointB) {
-  return isCanonicalAxisEndpoint(pointA) || isCanonicalAxisEndpoint(pointB) || isDerivedAxisEndpoint(pointA) || isDerivedAxisEndpoint(pointB);
+  return isAxisEndpoint(pointA) || isAxisEndpoint(pointB);
+}
+
+export function isAxisToAxisPair(pointA, pointB) {
+  return isAxisEndpoint(pointA) && isAxisEndpoint(pointB);
+}
+
+export function isCanonicalAxisPair(pointA, pointB) {
+  if (!isAxisToAxisPair(pointA, pointB)) {
+    return false;
+  }
+
+  const familyA = getAxisFamily(pointA);
+  const familyB = getAxisFamily(pointB);
+
+  if (familyA === familyB) {
+    return false;
+  }
+
+  return isCanonicalAxisEndpoint(pointA) && isCanonicalAxisEndpoint(pointB);
 }
 
 export function isAxisDerivedAspect(pointA, pointB, aspectName) {
@@ -519,16 +579,15 @@ export function isAxisDerivedAspect(pointA, pointB, aspectName) {
     return false;
   }
 
-  const aDerived = isDerivedAxisEndpoint(pointA);
-  const bDerived = isDerivedAxisEndpoint(pointB);
-  const aCanonical = isCanonicalAxisEndpoint(pointA);
-  const bCanonical = isCanonicalAxisEndpoint(pointB);
-
   if (isMandatoryStructuralPair(pointA, pointB)) {
     return true;
   }
 
-  if ((aDerived && !bCanonical) || (bDerived && !aCanonical)) {
+  if (isAxisToAxisPair(pointA, pointB)) {
+    return !isCanonicalAxisPair(pointA, pointB);
+  }
+
+  if (isDerivedAxisEndpoint(pointA) || isDerivedAxisEndpoint(pointB)) {
     return true;
   }
 
@@ -753,7 +812,10 @@ export function getAspectFalloffMultiplier(aspectName) {
     OPOSICAO: 0.95,
     QUADRATURA: 0.95,
     TRIGONO: 0.8,
-    SEXTIL: 0.75
+    SEXTIL: 0.75,
+    SEMIQUADRATURA: 0.85,
+    SESQUIQUADRADO: 0.85,
+    QUINCUNCIO: 0.82
   };
 
   return falloffs[aspectName] ?? 1.0;
@@ -764,12 +826,12 @@ export function getFamilyPriorityMultiplier(aspect) {
     return 1.0;
   }
 
-  if (aspect.family === "kepleriano") {
-    return 0.85;
+  if (aspect.layer === "structuralTensionModifier") {
+    return 0.88;
   }
 
-  if (aspect.family === "octil" || aspect.family === "inconjunto") {
-    return 0.8;
+  if (aspect.family === "kepleriano") {
+    return 0.85;
   }
 
   if (aspect.family === "septenario" || aspect.family === "novil") {
@@ -889,6 +951,10 @@ export function getBaseMinimumResonance(aspect) {
     return 0;
   }
 
+  if (aspect.layer === "structuralTensionModifier") {
+    return 0.25;
+  }
+
   if (aspect.family === "septenario" || aspect.family === "novil") {
     return 0.4;
   }
@@ -903,6 +969,10 @@ export function getBaseMinimumResonance(aspect) {
 export function getPartOfFortuneMinimumResonance(aspect) {
   if (aspect.layer === "structural") {
     return 0.2;
+  }
+
+  if (aspect.layer === "structuralTensionModifier") {
+    return 0.4;
   }
 
   if (aspect.family === "kepleriano") {
@@ -921,6 +991,10 @@ export function getSemiStructuralMinimumResonance(aspect) {
     return 0.2;
   }
 
+  if (aspect.layer === "structuralTensionModifier") {
+    return 0.35;
+  }
+
   return 0.45;
 }
 
@@ -929,7 +1003,7 @@ export function getMinimumResonance(aspect, pointA, pointB, pairType) {
   const eligibilityA = getStructuralEligibility(pointA);
   const eligibilityB = getStructuralEligibility(pointB);
 
-  if (aspect.layer === "structural" && (eligibilityA === "semi" || eligibilityB === "semi")) {
+  if ((aspect.layer === "structural" || aspect.layer === "structuralTensionModifier") && (eligibilityA === "semi" || eligibilityB === "semi")) {
     minimumResonance = Math.max(minimumResonance, getSemiStructuralMinimumResonance(aspect));
   }
 
@@ -945,7 +1019,15 @@ export function getMinimumResonance(aspect, pointA, pointB, pairType) {
 }
 
 export function getStructuralGroup(aspect, pointA, pointB) {
-  if (hasSymbolicRefiner(pointA, pointB)) {
+  if (hasMicroRefinerBody(pointA, pointB)) {
+    return "microRefiners";
+  }
+
+  if (aspect.layer === "structuralTensionModifier") {
+    return "structuralTensionModifiers";
+  }
+
+  if (hasSymbolicRefinerBody(pointA, pointB)) {
     return "symbolicRefiners";
   }
 
@@ -1039,6 +1121,7 @@ export function buildAspectResult(
     structuralGroup,
     structuralPriority: aspect.structuralPriority,
     canonicalAxis: pointA && pointB ? isAxisPair(pointA, pointB) : false,
+    axisCanonicalCollapse: pointA && pointB ? isAxisToAxisPair(pointA, pointB) : false,
     isAxisDerived,
     structuralEligibleA: pointA ? getStructuralEligibility(pointA) : null,
     structuralEligibleB: pointB ? getStructuralEligibility(pointB) : null,
@@ -1263,11 +1346,19 @@ export function getGroupRank(aspect) {
     return 1;
   }
 
-  if (aspect.structuralGroup === "symbolicRefiners") {
+  if (aspect.structuralGroup === "structuralTensionModifiers") {
     return 2;
   }
 
-  return 3;
+  if (aspect.structuralGroup === "symbolicRefiners") {
+    return 3;
+  }
+
+  if (aspect.structuralGroup === "microRefiners") {
+    return 4;
+  }
+
+  return 5;
 }
 
 export function sortAspects(a, b) {
@@ -1425,7 +1516,9 @@ export function buildOutputGroups(results) {
   return {
     structuralCore: filterResultAspectsByGroup(results, "structuralCore"),
     supportiveStructural: filterResultAspectsByGroup(results, "supportiveStructural"),
+    structuralTensionModifiers: filterResultAspectsByGroup(results, "structuralTensionModifiers"),
     symbolicRefiners: filterResultAspectsByGroup(results, "symbolicRefiners"),
+    microRefiners: filterResultAspectsByGroup(results, "microRefiners"),
     modulators: filterResultAspectsByGroup(results, "modulators")
   };
 }
@@ -1436,7 +1529,9 @@ export function buildPipeOutputGroups(results) {
   return {
     structuralCore: formatPipeResults(groupedResults.structuralCore),
     supportiveStructural: formatPipeResults(groupedResults.supportiveStructural),
+    structuralTensionModifiers: formatPipeResults(groupedResults.structuralTensionModifiers),
     symbolicRefiners: formatPipeResults(groupedResults.symbolicRefiners),
+    microRefiners: formatPipeResults(groupedResults.microRefiners),
     modulators: formatPipeResults(groupedResults.modulators)
   };
 }
@@ -1537,7 +1632,9 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
 
   const structuralCoreAspectsCount = countAspectsInResults(outputGroups.structuralCore);
   const supportiveStructuralAspectsCount = countAspectsInResults(outputGroups.supportiveStructural);
+  const structuralTensionModifiersAspectsCount = countAspectsInResults(outputGroups.structuralTensionModifiers);
   const symbolicRefinersAspectsCount = countAspectsInResults(outputGroups.symbolicRefiners);
+  const microRefinersAspectsCount = countAspectsInResults(outputGroups.microRefiners);
   const modulatorAspectsCount = countAspectsInResults(outputGroups.modulators);
   const totalAspectsFound = countAspectsInResults(sortedResults);
 
@@ -1558,7 +1655,9 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
       aspectsFound: totalAspectsFound,
       structuralCoreCount: structuralCoreAspectsCount,
       supportiveStructuralCount: supportiveStructuralAspectsCount,
+      structuralTensionModifiersCount: structuralTensionModifiersAspectsCount,
       symbolicRefinersCount: symbolicRefinersAspectsCount,
+      microRefinersCount: microRefinersAspectsCount,
       modulatorsCount: modulatorAspectsCount,
       options: normalizedOptions,
       format: "pipe",
@@ -1582,7 +1681,9 @@ export function identifyBatchAspects(points, houses = [], options = {}) {
     aspectsFound: totalAspectsFound,
     structuralCoreCount: structuralCoreAspectsCount,
     supportiveStructuralCount: supportiveStructuralAspectsCount,
+    structuralTensionModifiersCount: structuralTensionModifiersAspectsCount,
     symbolicRefinersCount: symbolicRefinersAspectsCount,
+    microRefinersCount: microRefinersAspectsCount,
     modulatorsCount: modulatorAspectsCount,
     options: normalizedOptions,
     results: sortedResults,
