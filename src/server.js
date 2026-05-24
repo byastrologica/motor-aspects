@@ -1,0 +1,49 @@
+import express from "express";
+import { identifyAspects } from "./aspects.js";
+
+const app = express();
+
+app.use(express.json());
+
+app.get("/", (request, response) => {
+  response.json({
+    name: "motor-aspects",
+    description: "API para calculo geometrico de aspectos astrologicos.",
+    endpoints: {
+      health: "GET /health",
+      calculateAspect: "POST /aspects"
+    }
+  });
+});
+
+app.get("/health", (request, response) => {
+  response.json({
+    status: "ok"
+  });
+});
+
+app.post("/aspects", (request, response) => {
+  try {
+    const { degreeA, degreeB } = request.body;
+
+    if (degreeA === undefined || degreeB === undefined) {
+      return response.status(400).json({
+        error: "degreeA and degreeB are required."
+      });
+    }
+
+    const result = identifyAspects(degreeA, degreeB);
+
+    response.json(result);
+  } catch (error) {
+    response.status(400).json({
+      error: error.message
+    });
+  }
+});
+
+const port = process.env.PORT || 3000;
+
+app.listen(port, () => {
+  console.log(`motor-aspects API running on port ${port}`);
+});
