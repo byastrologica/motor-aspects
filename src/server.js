@@ -45,9 +45,9 @@ app.post("/aspects", (request, response) => {
 
 app.post("/aspects/batch", (request, response) => {
   try {
-    const { points, houses } = request.body;
+    const { points, houses, options } = request.body;
 
-    const result = identifyBatchAspects(points, houses);
+    const result = identifyBatchAspects(points, houses, options);
 
     response.json(result);
   } catch (error) {
